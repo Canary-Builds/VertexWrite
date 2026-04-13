@@ -6,6 +6,21 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-04-13
+
+### Fixed
+- **Find toolbar button now toggles.** It previously always called `_toggle_find(True)` so clicking the icon a second time did nothing. The button is now a `Gtk.ToggleButton` whose state is kept in sync with `find_bar.search_mode_enabled`, so clicking the icon (or pressing Esc, or pressing Ctrl+F again) closes the search bar as expected.
+
+### Changed (toolbar declutter)
+- 24 toolbar buttons collapsed to 12 visible elements. No keyboard shortcut or palette action changed.
+- **Removed Cut / Copy / Paste buttons** — `Ctrl+X` / `Ctrl+C` / `Ctrl+V` are universal, and the smart-paste handler keeps Ctrl+V special.
+- **Removed Save As button** — `Ctrl+Shift+S` and the palette still expose it; Save's tooltip notes the shortcut.
+- **Block-formatting popovers** for less-frequent actions:
+  - Heading menu: H1 / H2 / H3 / H4 / Clear · Quote · Horizontal rule.
+  - Lists menu: Bulleted / Numbered / Checklist.
+  - Insert menu: Image / Table / Strikethrough.
+- New `_set_heading_level(N)` properly replaces existing heading prefixes (so H2 on an H1 line yields `## …`, not `## # …`); `Ctrl+H` now uses it for H1.
+
 ## [0.5.0] — 2026-04-13
 
 ### Added (17 new features — all keyboard-activated, no new visible chrome)

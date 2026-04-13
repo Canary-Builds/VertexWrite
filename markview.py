@@ -31,7 +31,7 @@ try:
 except Exception:
     _html2text = None
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 APP_ID = "dev.markview.Viewer"
 APP_NAME = "markview"
@@ -471,6 +471,34 @@ def _separator():
     return sep
 
 
+def _menu_button(icon_name, tooltip, items):
+    """items: list of (label, callback) tuples; None means a separator."""
+    btn = Gtk.MenuButton()
+    btn.set_image(Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.BUTTON))
+    btn.set_tooltip_text(tooltip)
+    btn.set_relief(Gtk.ReliefStyle.NONE)
+    btn.get_style_context().add_class("flat")
+    popover = Gtk.Popover()
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    box.set_margin_top(4); box.set_margin_bottom(4)
+    box.set_margin_start(4); box.set_margin_end(4)
+    for entry in items:
+        if entry is None:
+            sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+            sep.set_margin_top(4); sep.set_margin_bottom(4)
+            box.pack_start(sep, False, False, 0)
+            continue
+        label, callback = entry
+        item = Gtk.ModelButton()
+        item.set_property("text", label)
+        item.connect("clicked", lambda _b, cb=callback: cb())
+        box.pack_start(item, False, False, 0)
+    box.show_all()
+    popover.add(box)
+    btn.set_popover(popover)
+    return btn
+
+
 # --- command palette ---------------------------------------------------------
 
 class CommandPalette(Gtk.Window):
@@ -768,54 +796,68 @@ class Viewer(Gtk.ApplicationWindow):
 
         def add(b): bar.pack_start(b, False, False, 0)
 
+        # File: New, Save (Save As + clipboard live in the palette / Ctrl-shortcuts)
         add(_icon_button("document-new-symbolic", "New (Ctrl+N)", self._on_new))
-        add(_icon_button("document-save-symbolic", "Save (Ctrl+S)",
+        add(_icon_button("document-save-symbolic",
+                         "Save (Ctrl+S) · Save As: Ctrl+Shift+S",
                          lambda *_: self._save()))
-        add(_icon_button("document-save-as-symbolic", "Save As (Ctrl+Shift+S)",
-                         lambda *_: self._save_as()))
         add(_separator())
-        add(_icon_button("edit-undo-symbolic", "Undo (Ctrl+Z)", lambda *_: self._do_undo()))
-        add(_icon_button("edit-redo-symbolic", "Redo (Ctrl+Shift+Z)", lambda *_: self._do_redo()))
+
+        # History
+        add(_icon_button("edit-undo-symbolic", "Undo (Ctrl+Z)",
+                         lambda *_: self._do_undo()))
+        add(_icon_button("edit-redo-symbolic", "Redo (Ctrl+Shift+Z)",
+                         lambda *_: self._do_redo()))
         add(_separator())
-        add(_icon_button("edit-cut-symbolic", "Cut (Ctrl+X)",
-                         lambda *_: self._clipboard_action("cut-clipboard")))
-        add(_icon_button("edit-copy-symbolic", "Copy (Ctrl+C)",
-                         lambda *_: self._clipboard_action("copy-clipboard")))
-        add(_icon_button("edit-paste-symbolic", "Paste (Ctrl+V)",
-                         lambda *_: self._clipboard_action("paste-clipboard")))
-        add(_separator())
+
+        # Inline formatting (most-used)
         add(_icon_button("format-text-bold-symbolic", "Bold (Ctrl+B)",
                          lambda *_: self._wrap_selection("**", "**", "bold text")))
         add(_icon_button("format-text-italic-symbolic", "Italic (Ctrl+I)",
                          lambda *_: self._wrap_selection("*", "*", "italic text")))
-        add(_icon_button("format-text-strikethrough-symbolic", "Strikethrough",
-                         lambda *_: self._wrap_selection("~~", "~~", "strikethrough")))
-        add(_icon_button("format-text-underline-symbolic", "Heading (Ctrl+H)",
-                         lambda *_: self._prefix_line("# ", toggle=True)))
-        add(_icon_button("insert-link-symbolic", "Link (Ctrl+K)",
-                         lambda *_: self._insert_link()))
         add(_icon_button("utilities-terminal-symbolic", "Inline code",
                          lambda *_: self._wrap_selection("`", "`", "code")))
-        add(_icon_button("format-indent-more-symbolic", "Quote",
-                         lambda *_: self._prefix_line("> ", toggle=True)))
-        add(_icon_button("view-list-symbolic", "Bulleted list",
-                         lambda *_: self._prefix_line("- ", toggle=True)))
-        add(_icon_button("view-list-ordered-symbolic", "Numbered list",
-                         lambda *_: self._prefix_line("1. ", toggle=True)))
-        add(_icon_button("object-select-symbolic", "Checklist item",
-                         lambda *_: self._prefix_line("- [ ] ", toggle=True)))
-        add(_icon_button("insert-image-symbolic", "Image",
-                         lambda *_: self._insert_image()))
-        add(_icon_button("format-justify-fill-symbolic", "Horizontal rule",
-                         lambda *_: self._insert_text("\n---\n")))
+        add(_icon_button("insert-link-symbolic", "Link (Ctrl+K)",
+                         lambda *_: self._insert_link()))
+        add(_separator())
 
+        # Block-level grouped into popovers
+        add(_menu_button("format-text-underline-symbolic",
+                         "Headings, quote, rule",
+                         [
+                             ("Heading 1",       lambda: self._set_heading_level(1)),
+                             ("Heading 2",       lambda: self._set_heading_level(2)),
+                             ("Heading 3",       lambda: self._set_heading_level(3)),
+                             ("Heading 4",       lambda: self._set_heading_level(4)),
+                             ("Clear heading",   lambda: self._set_heading_level(0)),
+                             None,
+                             ("Quote",           lambda: self._prefix_line("> ", toggle=True)),
+                             ("Horizontal rule", lambda: self._insert_text("\n---\n")),
+                         ]))
+        add(_menu_button("view-list-symbolic", "Lists",
+                         [
+                             ("Bulleted list",   lambda: self._prefix_line("- ", toggle=True)),
+                             ("Numbered list",   lambda: self._prefix_line("1. ", toggle=True)),
+                             ("Checklist item",  lambda: self._prefix_line("- [ ] ", toggle=True)),
+                         ]))
+        add(_menu_button("insert-object-symbolic", "Insert",
+                         [
+                             ("Image…",          lambda: self._insert_image()),
+                             ("Table…",          lambda: self._insert_table_prompt()),
+                             None,
+                             ("Strikethrough",   lambda: self._wrap_selection("~~", "~~", "strikethrough")),
+                         ]))
+
+        # Spacer
         bar.pack_start(Gtk.Box(), True, True, 0)
 
+        # Word count + reading time
         self.wc_label = Gtk.Label(label="")
         self.wc_label.get_style_context().add_class("dim-label")
         self.wc_label.set_margin_end(6)
         bar.pack_start(self.wc_label, False, False, 0)
 
+        # View segmented (Editor / Split / Preview)
         view_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         view_box.get_style_context().add_class("linked")
         self.view_editor_btn = _toggle_icon("accessories-text-editor-symbolic", "Editor only")
@@ -830,9 +872,11 @@ class Viewer(Gtk.ApplicationWindow):
         bar.pack_start(view_box, False, False, 0)
 
         bar.pack_start(_separator(), False, False, 0)
-        bar.pack_start(_icon_button("edit-find-symbolic", "Find (Ctrl+F)",
-                                    lambda *_: self._toggle_find(True)),
-                       False, False, 0)
+
+        # Find toggle — synced with the search bar so the icon really toggles
+        self.find_btn = _toggle_icon("edit-find-symbolic", "Find (Ctrl+F)")
+        self.find_btn.connect("toggled", self._on_find_toggled)
+        bar.pack_start(self.find_btn, False, False, 0)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         outer.pack_start(bar, False, False, 0)
@@ -869,8 +913,17 @@ class Viewer(Gtk.ApplicationWindow):
         if on and self.mode != "edit":
             return
         self.find_bar.set_search_mode(on)
+        if hasattr(self, "find_btn"):
+            self._suppress_find_toggle = True
+            self.find_btn.set_active(on)
+            self._suppress_find_toggle = False
         if on:
             self.find_entry.grab_focus()
+
+    def _on_find_toggled(self, btn):
+        if getattr(self, "_suppress_find_toggle", False):
+            return
+        self._toggle_find(btn.get_active())
 
     def _on_find_changed(self, entry):
         self.search_settings.set_search_text(entry.get_text() or "")
@@ -974,7 +1027,7 @@ class Viewer(Gtk.ApplicationWindow):
         bind("b", CTRL, lambda: self._wrap_selection("**", "**", "bold text"))
         bind("i", CTRL, lambda: self._wrap_selection("*", "*", "italic text"))
         bind("k", CTRL, lambda: self._insert_link())
-        bind("h", CTRL, lambda: self._prefix_line("# ", toggle=True))
+        bind("h", CTRL, lambda: self._set_heading_level(1))
         bind("z", CTRL, lambda: self._do_undo())
         bind("z", CTRL | SHIFT, lambda: self._do_redo())
         bind("y", CTRL, lambda: self._do_redo())
@@ -2067,6 +2120,32 @@ class Viewer(Gtk.ApplicationWindow):
                 buf.delete(it, ep)
             else:
                 buf.insert(it, prefix)
+
+    def _set_heading_level(self, level: int):
+        """Replace any existing heading prefix on the current line(s) with `level` `#`s."""
+        buf = self.editor_buffer
+        buf.begin_user_action()
+        if buf.get_has_selection():
+            s, e = buf.get_selection_bounds()
+            first, last = s.get_line(), e.get_line()
+        else:
+            it = buf.get_iter_at_mark(buf.get_insert())
+            first = last = it.get_line()
+        for line_idx in range(first, last + 1):
+            li = buf.get_iter_at_line(line_idx)
+            if not li:
+                continue
+            le = li.copy()
+            if not le.ends_line():
+                le.forward_to_line_end()
+            text = buf.get_text(li, le, True)
+            stripped = re.sub(r"^#{1,6}\s+", "", text)
+            new = (("#" * level) + " " if level > 0 else "") + stripped
+            if new != text:
+                buf.delete(li, le)
+                buf.insert(li, new)
+        buf.end_user_action()
+        self.editor.grab_focus()
 
     def _insert_link(self):
         buf = self.editor_buffer
