@@ -13,3 +13,13 @@ build/
 .coverage
 .pytest_cache/
 .ruff_cache/
+
+# Local/package build artifacts
+.craft/
+.flatpak-builder/
+build-flatpak/
+repo-flatpak/
+parts/
+prime/
+stage/
+*.snap

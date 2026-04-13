@@ -25,33 +25,53 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install linters
-        run: python -m pip install --upgrade pip ruff pyflakes
+      - name: Install QA tools
+        run: python -m pip install --upgrade pip ruff pyflakes pytest
 
       - name: Syntax check
         run: python3 -m py_compile markview.py
 
       - name: Ruff
-        run: ruff check --select E,F,W,B,UP --ignore E501 markview.py
+        run: ruff check --no-cache --select F,W,B,UP markview.py
 
       - name: Pyflakes
-        run: pyflakes markview.py || true
+        run: pyflakes markview.py
 
-      - name: Import smoke test (render only — no display)
+      - name: Pytest
+        run: pytest -q
+
+      - name: AST symbol smoke test
         run: |
           python3 - <<'EOF'
-          import sys; sys.path.insert(0, '.')
-          # Import guarded modules only — avoid instantiating GTK window.
-          # We just want to catch import-time errors on pure-Python helpers.
-          import importlib.util
-          spec = importlib.util.spec_from_file_location('markview', 'markview.py')
-          # Skip full exec; the file imports gi which needs a display at runtime.
-          # Instead verify the module parses + expected symbols are textually present.
-          src = open('markview.py').read()
-          for sym in ['__version__', 'render', 'extract_headings', 'preprocess_tasks',
-                     'preprocess_transclusions', 'toggle_task_line',
-                     'csv_to_markdown_table', 'html_to_markdown', 'CommandPalette',
-                     'OutlineSidebar', 'Viewer']:
-              assert sym in src, f'missing symbol: {sym}'
-          print('symbols ok')
+          import ast
+          from pathlib import Path
+
+          src = Path("markview.py").read_text(encoding="utf-8")
+          tree = ast.parse(src, filename="markview.py")
+          defined = set()
+
+          for node in tree.body:
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                  defined.add(node.name)
+              elif isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if isinstance(target, ast.Name):
+                          defined.add(target.id)
+
+          expected = {
+              "__version__",
+              "render",
+              "extract_headings",
+              "preprocess_tasks",
+              "preprocess_transclusions",
+              "toggle_task_line",
+              "csv_to_markdown_table",
+              "html_to_markdown",
+              "CommandPalette",
+              "OutlineSidebar",
+              "Viewer",
+          }
+          missing = sorted(expected - defined)
+          assert not missing, f"missing top-level symbols: {missing}"
+          print("ast symbols ok")
           EOF
