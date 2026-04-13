@@ -43,6 +43,8 @@ sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
 | Key | Action |
 |---|---|
 | `Ctrl+O` | Open file |
+| `Ctrl+E` | Toggle edit mode |
+| `Ctrl+S` | Save (in edit mode) |
 | `Ctrl+R` | Reload current file |
 | `Ctrl+D` | Toggle light/dark |
 | `Ctrl+Q` | Quit |

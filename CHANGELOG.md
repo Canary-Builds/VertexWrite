@@ -6,6 +6,18 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-13
+
+### Added
+- **Edit mode.** Toggle button in the header (between Open and Reload) flips the view to a plain text editor for the current file.
+- `Ctrl+E` toggles edit mode; `Ctrl+S` saves the buffer to disk.
+- Dirty indicator (`•`) appended to the window title when the editor buffer has unsaved changes.
+- Edit button is disabled on the welcome screen (no file open); enabled once a file is loaded.
+
+### Changed
+- Live-reload file monitor is paused while in edit mode so in-flight edits are never clobbered by a self-triggered reload.
+- Preview and editor share a `Gtk.Stack` with a short crossfade transition.
+
 ## [0.1.0] — 2026-04-13
 
 ### Added

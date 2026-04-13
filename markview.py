@@ -14,7 +14,7 @@ from gi.repository import Gtk, WebKit2, Gio, GLib, Gdk  # noqa: E402
 import markdown  # noqa: E402
 from pygments.formatters import HtmlFormatter  # noqa: E402
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 APP_ID = "dev.markview.Viewer"
 APP_NAME = "markview"
@@ -97,6 +97,8 @@ class Viewer(Gtk.ApplicationWindow):
         self.current_path: Path | None = None
         self.monitor: Gio.FileMonitor | None = None
         self.theme = self._detect_theme()
+        self.mode = "preview"  # "preview" | "edit"
+        self._suppress_reload_until = 0.0
 
         header = Gtk.HeaderBar()
         header.set_show_close_button(True)
@@ -108,6 +110,15 @@ class Viewer(Gtk.ApplicationWindow):
         open_btn.set_tooltip_text("Open markdown file (Ctrl+O)")
         open_btn.connect("clicked", self._on_open_clicked)
         header.pack_start(open_btn)
+
+        self.edit_btn = Gtk.ToggleButton()
+        self.edit_btn.set_image(
+            Gtk.Image.new_from_icon_name("document-edit-symbolic", Gtk.IconSize.BUTTON)
+        )
+        self.edit_btn.set_tooltip_text("Edit mode (Ctrl+E)")
+        self.edit_btn.set_sensitive(False)
+        self.edit_btn.connect("toggled", self._on_edit_toggled)
+        header.pack_start(self.edit_btn)
 
         reload_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.BUTTON)
         reload_btn.set_tooltip_text("Reload (Ctrl+R)")
@@ -125,9 +136,29 @@ class Viewer(Gtk.ApplicationWindow):
         settings.set_property("enable-javascript", True)
         settings.set_property("enable-smooth-scrolling", True)
 
-        scroller = Gtk.ScrolledWindow()
-        scroller.add(self.webview)
-        self.add(scroller)
+        self.preview_scroller = Gtk.ScrolledWindow()
+        self.preview_scroller.add(self.webview)
+
+        self.editor = Gtk.TextView()
+        self.editor.set_monospace(True)
+        self.editor.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.editor.set_left_margin(24)
+        self.editor.set_right_margin(24)
+        self.editor.set_top_margin(20)
+        self.editor.set_bottom_margin(120)
+        self.editor.set_pixels_above_lines(1)
+        self.editor_buffer = self.editor.get_buffer()
+        self.editor_buffer.connect("changed", self._on_buffer_changed)
+
+        self.editor_scroller = Gtk.ScrolledWindow()
+        self.editor_scroller.add(self.editor)
+
+        self.stack = Gtk.Stack()
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_transition_duration(120)
+        self.stack.add_named(self.preview_scroller, "preview")
+        self.stack.add_named(self.editor_scroller, "edit")
+        self.add(self.stack)
 
         self._setup_shortcuts()
         self._setup_dnd()
@@ -163,6 +194,8 @@ class Viewer(Gtk.ApplicationWindow):
         bind("r", Gdk.ModifierType.CONTROL_MASK, self._reload)
         bind("q", Gdk.ModifierType.CONTROL_MASK, self.close)
         bind("d", Gdk.ModifierType.CONTROL_MASK, self._toggle_theme)
+        bind("e", Gdk.ModifierType.CONTROL_MASK, self._toggle_edit)
+        bind("s", Gdk.ModifierType.CONTROL_MASK, self._save_current)
 
     def _setup_dnd(self):
         targets = Gtk.TargetList.new([])
@@ -217,10 +250,13 @@ class Viewer(Gtk.ApplicationWindow):
             self._render_error(f"Could not read {path}: {exc}")
             return
         self.current_path = path
+        self.edit_btn.set_sensitive(True)
         self.header.props.title = path.name
         self.header.props.subtitle = str(path.parent)
         base_uri = path.parent.as_uri() + "/"
         self.webview.load_html(render(text, self.theme, path.name), base_uri)
+        if self.mode == "edit":
+            self._load_editor_text(text)
         self._watch_file(path)
 
     def _watch_file(self, path: Path):
@@ -234,6 +270,10 @@ class Viewer(Gtk.ApplicationWindow):
             self.monitor = None
 
     def _on_file_changed(self, _mon, _file, _other, event):
+        if self.mode == "edit":
+            return  # don't clobber in-flight edits
+        if GLib.get_monotonic_time() / 1e6 < self._suppress_reload_until:
+            return  # our own save — ignore the resulting event
         if event in (
             Gio.FileMonitorEvent.CHANGES_DONE_HINT,
             Gio.FileMonitorEvent.CREATED,
@@ -259,10 +299,84 @@ class Viewer(Gtk.ApplicationWindow):
 
     def _render_welcome(self):
         self.webview.load_html(welcome_html(self.theme), APP_DIR.as_uri() + "/")
+        self.edit_btn.set_sensitive(False)
 
     def _render_error(self, msg: str):
         md_text = f"# Error\n\n```\n{msg}\n```\n"
         self.webview.load_html(render(md_text, self.theme, "Error"), APP_DIR.as_uri() + "/")
+
+    # ---- edit mode ---------------------------------------------------------
+
+    def _on_edit_toggled(self, btn):
+        self._set_mode("edit" if btn.get_active() else "preview")
+
+    def _toggle_edit(self, *_):
+        if not self.edit_btn.get_sensitive():
+            return
+        self.edit_btn.set_active(not self.edit_btn.get_active())
+
+    def _set_mode(self, mode: str):
+        if mode == self.mode:
+            return
+        if mode == "edit":
+            if not self.current_path:
+                self.edit_btn.set_active(False)
+                return
+            try:
+                text = self.current_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                self._render_error(f"Could not read {self.current_path}: {exc}")
+                self.edit_btn.set_active(False)
+                return
+            self._load_editor_text(text)
+            self.stack.set_visible_child_name("edit")
+            self.mode = "edit"
+            self.edit_btn.set_tooltip_text("Exit edit mode (Ctrl+E) · save with Ctrl+S")
+            self.editor.grab_focus()
+        else:
+            if self.editor_buffer.get_modified():
+                self._write_buffer_to_file()
+            self.stack.set_visible_child_name("preview")
+            self.mode = "preview"
+            self.edit_btn.set_tooltip_text("Edit mode (Ctrl+E)")
+            if self.current_path and self.current_path.exists():
+                self.load_file(self.current_path)
+
+    def _load_editor_text(self, text: str):
+        self.editor_buffer.handler_block_by_func(self._on_buffer_changed)
+        self.editor_buffer.set_text(text)
+        self.editor_buffer.set_modified(False)
+        self.editor_buffer.handler_unblock_by_func(self._on_buffer_changed)
+        self._update_title_dirty()
+
+    def _on_buffer_changed(self, *_):
+        self._update_title_dirty()
+
+    def _update_title_dirty(self):
+        if not self.current_path:
+            return
+        dirty = self.editor_buffer.get_modified()
+        self.header.props.title = f"{self.current_path.name}{' •' if dirty else ''}"
+
+    def _save_current(self, *_):
+        if self.mode != "edit" or not self.current_path:
+            return
+        self._write_buffer_to_file()
+
+    def _write_buffer_to_file(self) -> bool:
+        if not self.current_path:
+            return False
+        start, end = self.editor_buffer.get_bounds()
+        text = self.editor_buffer.get_text(start, end, True)
+        try:
+            self._suppress_reload_until = GLib.get_monotonic_time() / 1e6 + 1.0
+            self.current_path.write_text(text, encoding="utf-8")
+        except OSError as exc:
+            self._render_error(f"Could not write {self.current_path}: {exc}")
+            return False
+        self.editor_buffer.set_modified(False)
+        self._update_title_dirty()
+        return True
 
 
 class App(Gtk.Application):
