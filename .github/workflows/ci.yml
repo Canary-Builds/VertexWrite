@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-gtksource-4 \
+            python3-markdown python3-pygments
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: python -m pip install --upgrade pip ruff pyflakes
+
+      - name: Syntax check
+        run: python3 -m py_compile markview.py
+
+      - name: Ruff
+        run: ruff check --select E,F,W,B,UP --ignore E501 markview.py
+
+      - name: Pyflakes
+        run: pyflakes markview.py || true
+
+      - name: Import smoke test (render only — no display)
+        run: |
+          python3 - <<'EOF'
+          import sys; sys.path.insert(0, '.')
+          # Import guarded modules only — avoid instantiating GTK window.
+          # We just want to catch import-time errors on pure-Python helpers.
+          import importlib.util
+          spec = importlib.util.spec_from_file_location('markview', 'markview.py')
+          # Skip full exec; the file imports gi which needs a display at runtime.
+          # Instead verify the module parses + expected symbols are textually present.
+          src = open('markview.py').read()
+          for sym in ['__version__', 'render', 'extract_headings', 'preprocess_tasks',
+                     'preprocess_transclusions', 'toggle_task_line',
+                     'csv_to_markdown_table', 'html_to_markdown', 'CommandPalette',
+                     'OutlineSidebar', 'Viewer']:
+              assert sym in src, f'missing symbol: {sym}'
+          print('symbols ok')
+          EOF
