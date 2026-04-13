@@ -6,6 +6,16 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-04-13
+
+### Fixed
+- **Keyboard Shortcuts menu action works on GTK3 builds.** `Gtk.ShortcutsWindow` now uses a compatibility fallback (`add_section` when available, otherwise `add`) so Menu → Keyboard Shortcuts opens reliably.
+- **What’s New now finds packaged changelogs.** The app now checks common installed paths (`/usr/share/doc/markview/CHANGELOG.md`, `.gz`, and `changelog.gz`) instead of only local source paths.
+- **GtkSource compatibility for runtime variants.** markview now prefers GtkSource 5 with a fallback to 4 so the same app code runs on modern Flatpak GNOME runtimes and Debian/Ubuntu packages.
+
+### Changed
+- README install section now includes store/package-manager install entries for **Ubuntu PPA (apt)**, **Snapcraft**, and **Flathub**, including visual badges.
+
 ## [0.5.2] — 2026-04-13
 
 ### Added

@@ -3,9 +3,12 @@
 > Minimal, modern markdown viewer **and editor** for Linux — GTK3 + WebKit + GtkSourceView.
 > No Electron, no tray daemon, no account. Starts in under a second.
 
-[![version](https://img.shields.io/badge/version-0.5.0-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.5.3-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Linux-lightgrey)](#install)
+[![snap](https://img.shields.io/badge/Snapcraft-markview-E95420?logo=snapcraft&logoColor=white)](https://snapcraft.io/markview)
+[![ubuntu-ppa](https://img.shields.io/badge/Ubuntu%20PPA-mareekkk%2Fcanarybuilds-E95420?logo=ubuntu&logoColor=white)](https://launchpad.net/~mareekkk/+archive/ubuntu/canarybuilds)
+[![flathub](https://img.shields.io/badge/Flathub-com.canarybuilds.Markview-000000?logo=flathub&logoColor=white)](https://flathub.org/apps/com.canarybuilds.Markview)
 
 <p align="center">
   <img src="icon.png" width="128" alt="markview logo">
@@ -73,7 +76,34 @@ Open / New / Save · Toggle edit / split / preview · Outline · Typewriter · R
 
 ## Install
 
-### Ubuntu 22.04+ / Debian 12+
+<p align="center">
+  <a href="https://snapcraft.io/markview"><img alt="Get it from Snapcraft" src="https://snapcraft.io/markview/badge.svg"></a>
+  <a href="https://launchpad.net/~mareekkk/+archive/ubuntu/canarybuilds"><img alt="Install from Ubuntu PPA" src="https://img.shields.io/badge/Ubuntu_App_Center-PPA%20mareekkk%2Fcanarybuilds-E95420?logo=ubuntu&logoColor=white"></a>
+  <a href="https://flathub.org/apps/com.canarybuilds.Markview"><img alt="Get it on Flathub" src="https://img.shields.io/badge/Flathub-com.canarybuilds.Markview-000000?logo=flathub&logoColor=white"></a>
+</p>
+
+### Ubuntu (App Center via PPA)
+
+```bash
+sudo add-apt-repository ppa:mareekkk/canarybuilds
+sudo apt update
+sudo apt install markview
+```
+
+### Snapcraft
+
+```bash
+sudo snap install markview
+```
+
+### Flathub
+
+```bash
+flatpak install flathub com.canarybuilds.Markview
+flatpak run com.canarybuilds.Markview
+```
+
+### Source install (Ubuntu 22.04+ / Debian 12+)
 
 ```bash
 sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
