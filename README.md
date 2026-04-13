@@ -15,7 +15,7 @@
 
 ## What it is
 
-A single Python script that turns any `.md` file into a clean, themeable reading view — and when you hit `Ctrl+E` it becomes a proper editor with a 13-button formatting toolbar, a command palette, folder-wide search, an outline sidebar, live split-view preview with scroll-sync, auto-save snapshots, and live math / diagrams.
+A single Python script that turns any `.md` file into a clean, themeable reading view — hitting `Ctrl+E` flips it into a proper editor with a focused formatting toolbar, a command palette, folder-wide search, an outline sidebar, live split-view preview with scroll-sync, auto-save snapshots, and live math / diagrams.
 
 The chrome stays minimal: **three buttons in the header**, one toolbar that only appears in edit mode, everything else is keyboard-driven.
 
