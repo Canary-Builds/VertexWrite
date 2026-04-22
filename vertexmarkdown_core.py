@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Core markdown/render/snapshot helpers for markview.
+﻿#!/usr/bin/env python3
+"""Core markdown/render/snapshot helpers for VertexMarkdown.
 
 This module is intentionally GTK-free so core behavior can be tested and reused
 without pulling UI dependencies into the import graph.
@@ -288,14 +288,14 @@ def _js_bridge(theme: str) -> str:
     mermaid_theme = "dark" if theme == "dark" else "default"
     return f"""
 (function(){{
-  window.markview = window.markview || {{}};
-  window.markview.scrollToAnchor = function(slug){{
+  window.vertexMarkdown = window.vertexMarkdown || {{}};
+  window.vertexMarkdown.scrollToAnchor = function(slug){{
     if (!slug) return;
     var el = document.getElementById(slug);
     if (el) el.scrollIntoView({{block:'start', behavior:'auto'}});
   }};
   var post = function(payload){{
-    try {{ window.webkit.messageHandlers.markview.postMessage(JSON.stringify(payload)); }}
+    try {{ window.webkit.messageHandlers.vertexmarkdown.postMessage(JSON.stringify(payload)); }}
     catch(e){{}}
   }};
   document.querySelectorAll('input.mv-task').forEach(function(el){{
@@ -445,3 +445,4 @@ def csv_to_markdown_table(text: str, sep: str) -> str:
     sep_row = "| " + " | ".join(["---"] * width) + " |"
     body = "\n".join(fmt(r) for r in cells[1:])
     return f"{header}\n{sep_row}\n{body}\n"
+

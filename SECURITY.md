@@ -1,12 +1,12 @@
-# Security policy
+﻿# Security policy
 
 ## Reporting a vulnerability
 
-If you believe you've found a security issue in markview, please **do not** open a public GitHub issue.
+If you believe you've found a security issue in VertexMarkdown, please **do not** open a public GitHub issue.
 
 Instead, open a private GitHub Security Advisory:
 
-1. Go to the repo's **Security → Advisories** tab.
+1. Go to the repo's **Security â†’ Advisories** tab.
 2. Click **Report a vulnerability**.
 3. Describe the issue, impact, and a minimal reproducer if possible.
 
@@ -14,7 +14,7 @@ You should get an acknowledgement within a week.
 
 ## Scope
 
-markview is a desktop viewer/editor that:
+VertexMarkdown is a desktop viewer/editor that:
 
 - Reads local files chosen by the user
 - Renders them in an embedded WebKit view (scripts enabled, plugins disabled, dev tools disabled)
@@ -32,10 +32,12 @@ Issues relevant to the project include, for example:
 
 ## Not in scope
 
-- Vulnerabilities in Python, GTK, WebKit, GtkSourceView, pandoc, KaTeX, or Mermaid themselves — please report those upstream.
+- Vulnerabilities in Python, GTK, WebKit, GtkSourceView, pandoc, KaTeX, or Mermaid themselves â€” please report those upstream.
 - Theoretical issues without a concrete reproducer.
-- The user intentionally opening a local file they don't trust (markview is a local viewer; treat inputs accordingly).
+- The user intentionally opening a local file they don't trust (VertexMarkdown is a local viewer; treat inputs accordingly).
 
 ## Supported versions
 
 Only the latest minor release line receives security fixes. Older versions may not be patched.
+
+

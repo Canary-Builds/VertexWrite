@@ -1,8 +1,8 @@
-# Code of Conduct
+﻿# Code of Conduct
 
 ## Our pledge
 
-In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to make participation in markview a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, colour, religion, or sexual identity and orientation.
+In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to make participation in VertexMarkdown a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, colour, religion, or sexual identity and orientation.
 
 ## Our standards
 
@@ -31,3 +31,4 @@ Maintainers may remove, edit, or reject comments, commits, code, wiki edits, iss
 ## Attribution
 
 This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.
+

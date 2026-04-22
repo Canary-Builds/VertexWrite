@@ -1,14 +1,14 @@
-# Installation
+﻿# Installation
 
-markview can be installed on Windows from GitHub Releases, on Linux from Ubuntu PPA (`apt`), Snapcraft, Flathub (Flatpak), or from source.
+VertexMarkdown can be installed on Windows from GitHub Releases, on Linux from Ubuntu PPA (`apt`), Snapcraft, Flathub (Flatpak), or from source.
 
 ## Quick install (recommended)
 
 ### Windows installer
 
-Download the latest `markview-<version>-win-setup.exe` from the GitHub Releases page:
+Download the latest `vertexmarkdown-<version>-win-setup.exe` from the GitHub Releases page:
 
-- https://github.com/Canary-Builds/markview/releases
+- https://github.com/Canary-Builds/VertexMarkdown/releases
 
 The Windows installer is built from the repo's release workflow and installs the packaged PyQt6 application.
 
@@ -17,20 +17,20 @@ The Windows installer is built from the repo's release workflow and installs the
 ```bash
 sudo add-apt-repository ppa:mareekkk/canarybuilds
 sudo apt update
-sudo apt install markview
+sudo apt install vertexmarkdown
 ```
 
 ### Snapcraft
 
 ```bash
-sudo snap install markview
+sudo snap install vertexmarkdown
 ```
 
 ### Flatpak (Flathub)
 
 ```bash
-flatpak install flathub com.canarybuilds.Markview
-flatpak run com.canarybuilds.Markview
+flatpak install flathub com.canarybuilds.VertexMarkdown
+flatpak run com.canarybuilds.VertexMarkdown
 ```
 
 If Flathub says the app is not found yet, it means the submission is still under review/publishing.
@@ -89,8 +89,8 @@ PY
 ## Install from source
 
 ```bash
-git clone https://github.com/Canary-Builds/markview.git ~/markview
-cd ~/markview
+git clone https://github.com/Canary-Builds/VertexMarkdown.git ~/VertexMarkdown
+cd ~/VertexMarkdown
 ./install.sh
 ```
 
@@ -98,9 +98,9 @@ This creates:
 
 | Path | Purpose |
 |---|---|
-| `~/.local/bin/markview` | CLI wrapper |
-| `~/.local/share/applications/markview.desktop` | Desktop launcher entry |
-| `~/.local/share/icons/hicolor/<size>/apps/markview.png` | App icons |
+| `~/.local/bin/vertexmarkdown` | CLI wrapper |
+| `~/.local/share/applications/vertexmarkdown.desktop` | Desktop launcher entry |
+| `~/.local/share/icons/hicolor/<size>/apps/vertexmarkdown.png` | App icons |
 
 Ensure `~/.local/bin` is in your `PATH`:
 
@@ -111,15 +111,15 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ## Run
 
 ```bash
-markview
-markview README.md
-markview -V
+vertexmarkdown
+vertexmarkdown README.md
+VertexMarkdown -V
 ```
 
 Windows source run:
 
 ```powershell
-py .\markview_win.py
+py .\vertexmarkdown_win.py
 ```
 
 ## Windows build from source
@@ -133,11 +133,13 @@ Outputs:
 
 | Path | Purpose |
 |---|---|
-| `dist\markview\markview.exe` | packaged Windows app |
-| `installer_output\markview-<version>-win-setup.exe` | Windows installer |
+| `dist\vertexmarkdown\vertexmarkdown.exe` | packaged Windows app |
+| `installer_output\vertexmarkdown-<version>-win-setup.exe` | Windows installer |
 
 ## Uninstall source install
 
 ```bash
-~/markview/uninstall.sh
+~/vertexmarkdown/uninstall.sh
 ```
+
+

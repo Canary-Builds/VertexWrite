@@ -1,10 +1,10 @@
-from pathlib import Path
+﻿from pathlib import Path
 import sys
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import markview as mv  # noqa: E402
+import vertexmarkdown as mv  # noqa: E402
 
 
 def test_toggle_task_line_round_trip():
@@ -68,3 +68,4 @@ def test_preprocess_transclusions_inlines_markdown_file(tmp_path: Path):
     out = mv.preprocess_transclusions(src, tmp_path)
     assert "Hello from child" in out
     assert "Before" in out and "After" in out
+

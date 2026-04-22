@@ -1,4 +1,4 @@
----
+﻿---
 name: Feature request
 about: Suggest a capability
 title: "[feat] "
@@ -11,11 +11,11 @@ labels: ["enhancement"]
 
 ## Proposed solution
 
-<!-- What you'd like markview to do. UI sketch or keyboard shortcut if relevant. -->
+<!-- What you'd like VertexMarkdown to do. UI sketch or keyboard shortcut if relevant. -->
 
 ## Alternatives considered
 
-<!-- Other tools that do it; why their approach does/doesn't fit markview. -->
+<!-- Other tools that do it; why their approach does/doesn't fit VertexMarkdown. -->
 
 ## Scope check
 
@@ -23,3 +23,4 @@ labels: ["enhancement"]
 - [ ] Does not require a new always-on service or network account
 - [ ] Can degrade gracefully when offline or when an optional dep is missing
 - [ ] Not already covered in [ROADMAP.md](../../ROADMAP.md)
+

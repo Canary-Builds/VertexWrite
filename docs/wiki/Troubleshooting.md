@@ -1,4 +1,4 @@
-# Troubleshooting
+﻿# Troubleshooting
 
 Quick fixes for common issues. If your problem isn't here, check [FAQ](FAQ.md) or open an issue.
 
@@ -14,7 +14,7 @@ sudo apt install python3-gi
 
 ### `ValueError: Namespace WebKit2 not available for version 4.1`
 
-WebKit2 4.1 typelib is missing. On Ubuntu 24.04+ it's `gir1.2-webkit2-4.1`. Older distros ship `4.0` — markview does not support that version.
+WebKit2 4.1 typelib is missing. On Ubuntu 24.04+ it's `gir1.2-webkit2-4.1`. Older distros ship `4.0` â€” VertexMarkdown does not support that version.
 
 ```bash
 sudo apt install gir1.2-webkit2-4.1
@@ -34,15 +34,15 @@ sudo apt install python3-markdown python3-pygments
 
 ### Window opens blank, no preview
 
-1. Is GPU acceleration broken? Try: `WEBKIT_DISABLE_COMPOSITING_MODE=1 markview`.
+1. Is GPU acceleration broken? Try: `WEBKIT_DISABLE_COMPOSITING_MODE=1 vertexmarkdown`.
 2. Check stderr for WebKit crash messages.
-3. Disable custom CSS: `mv ~/.config/markview/custom.css{,.disabled}` and relaunch.
+3. Disable custom CSS: `mv ~/.config/vertexmarkdown/custom.css{,.disabled}` and relaunch.
 
 ## Editor
 
 ### Undo doesn't go back far enough
 
-Default history is 500 steps. Once you close and reopen a document, history is reset — snapshots (Ctrl+P → View snapshot history) are the longer-term fallback.
+Default history is 500 steps. Once you close and reopen a document, history is reset â€” snapshots (Ctrl+P â†’ View snapshot history) are the longer-term fallback.
 
 ### Typing is laggy in split view
 
@@ -50,7 +50,7 @@ The preview re-renders after a 220 ms debounce. For very large docs, switch to E
 
 ### Smart paste didn't convert HTML
 
-- If `python3-html2text` is not installed, markview uses a built-in fallback that handles common tags only (`h1-h6`, `p`, `br`, `strong/b`, `em/i`, `code`, `pre`, `a`, `img`, `ul/ol/li`, `blockquote`, `hr`). Anything else comes through as plain text. Install `python3-html2text` for best results.
+- If `python3-html2text` is not installed, VertexMarkdown uses a built-in fallback that handles common tags only (`h1-h6`, `p`, `br`, `strong/b`, `em/i`, `code`, `pre`, `a`, `img`, `ul/ol/li`, `blockquote`, `hr`). Anything else comes through as plain text. Install `python3-html2text` for best results.
 
 ### Smart list not continuing
 
@@ -60,23 +60,23 @@ Recognized patterns: `^\s*[-*+] `, `^\s*\d+\. `, `^\s*[-*+] \[[ xX]\] `. Custom 
 
 ### KaTeX / Mermaid not rendering
 
-- You're offline — the CDN bundle couldn't load. Content appears as raw source.
+- You're offline â€” the CDN bundle couldn't load. Content appears as raw source.
 - A corporate firewall is blocking `cdn.jsdelivr.net`. Whitelist it or wait for the bundled offline copies in 0.6.
 - WebView has JavaScript disabled. Not possible via UI; check if you modified `enable-javascript` in the source.
 
 ### Math delimiters not recognised
 
-Use one of: `$…$`, `$$…$$`, `\(…\)`, `\[…\]`. `\begin{equation}` blocks aren't auto-rendered.
+Use one of: `$â€¦$`, `$$â€¦$$`, `\(â€¦\)`, `\[â€¦\]`. `\begin{equation}` blocks aren't auto-rendered.
 
 ### Mermaid error in diagram
 
-The error renders inline in the preview. Mermaid is strict about syntax — see [mermaid.js.org/syntax](https://mermaid.js.org/syntax).
+The error renders inline in the preview. Mermaid is strict about syntax â€” see [mermaid.js.org/syntax](https://mermaid.js.org/syntax).
 
 ### Custom CSS isn't applying
 
-1. Path must be exactly `~/.config/markview/custom.css` (or `$XDG_CONFIG_HOME/markview/custom.css`).
-2. Reload the document (`Ctrl+R`) — CSS is read at render time, not cached.
-3. Check for a syntax error in your CSS — WebKit silently drops invalid rules.
+1. Path must be exactly `~/.config/vertexmarkdown/custom.css` (or `$XDG_CONFIG_HOME/vertexmarkdown/custom.css`).
+2. Reload the document (`Ctrl+R`) â€” CSS is read at render time, not cached.
+3. Check for a syntax error in your CSS â€” WebKit silently drops invalid rules.
 
 ### Transclusion target not found
 
@@ -94,7 +94,7 @@ The error renders inline in the preview. Mermaid is strict about syntax — see 
 
 ### Outline sidebar is empty
 
-The outline lists headings found outside fenced code blocks. Check that the document has `#`-prefixed headings (not `=====` / `-----` underlined ones — Setext-style headings aren't indexed yet).
+The outline lists headings found outside fenced code blocks. Check that the document has `#`-prefixed headings (not `=====` / `-----` underlined ones â€” Setext-style headings aren't indexed yet).
 
 ## File handling
 
@@ -103,14 +103,14 @@ The outline lists headings found outside fenced code blocks. Check that the docu
 - Reload explicitly: `Ctrl+R`.
 - Some network filesystems (older NFS, some SMB setups) don't emit inotify events. This is a kernel-level limitation.
 
-### Save failed with "Could not write …"
+### Save failed with "Could not write â€¦"
 
 - Disk full or read-only filesystem.
 - The file was moved or deleted while open. Use `Save As`.
 
 ### Snapshots aren't being created
 
-- `_write_to` writes a snapshot on every successful save. Check `~/.local/state/markview/snapshots/` exists and is writable.
+- `_write_to` writes a snapshot on every successful save. Check `~/.local/state/vertexmarkdown/snapshots/` exists and is writable.
 - Untitled buffers don't snapshot (there's no stable path yet). Save once, then edits are covered.
 
 ## Export
@@ -118,7 +118,7 @@ The outline lists headings found outside fenced code blocks. Check that the docu
 ### Export to PDF fails
 
 - `pandoc` must be installed: `sudo apt install pandoc`.
-- PDF engine: markview passes `--pdf-engine=xelatex`. Install a LaTeX stack: `sudo apt install texlive-xetex`.
+- PDF engine: VertexMarkdown passes `--pdf-engine=xelatex`. Install a LaTeX stack: `sudo apt install texlive-xetex`.
 - For simpler HTML-to-PDF, export as HTML and print it from a browser.
 
 ### Export to DOCX / EPUB fails
@@ -129,9 +129,11 @@ The outline lists headings found outside fenced code blocks. Check that the docu
 
 ### App uses more memory than expected
 
-WebKit is the biggest consumer. Typical resident set is 150–300 MB. If it balloons, the preview likely has a stuck script — reload (`Ctrl+R`) or switch to Editor-only.
+WebKit is the biggest consumer. Typical resident set is 150â€“300 MB. If it balloons, the preview likely has a stuck script â€” reload (`Ctrl+R`) or switch to Editor-only.
 
 ### Cold start is slow
 
-- Usually GTK theme loading. Check `GTK_DEBUG=interactive markview` — if GTK itself is slow you'll see it spinning on theme parsing.
-- Antivirus or file-indexer scanning your home on first read — wait for it to finish, or exclude the folder.
+- Usually GTK theme loading. Check `GTK_DEBUG=interactive vertexmarkdown` â€” if GTK itself is slow you'll see it spinning on theme parsing.
+- Antivirus or file-indexer scanning your home on first read â€” wait for it to finish, or exclude the folder.
+
+

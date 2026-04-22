@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# Install markview: wire the CLI on PATH and register a desktop entry.
+﻿#!/usr/bin/env bash
+# Install VertexMarkdown: wire the CLI on PATH and register a desktop entry.
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -10,16 +10,16 @@ HICOLOR="${HOME}/.local/share/icons/hicolor"
 mkdir -p "${BIN_DIR}" "${APPS_DIR}"
 
 # Ensure python entrypoint is executable.
-chmod +x "${APP_DIR}/markview.py"
+chmod +x "${APP_DIR}/vertexmarkdown.py"
 
 # CLI launcher on PATH.
-cat > "${BIN_DIR}/markview" <<EOF
+cat > "${BIN_DIR}/vertexmarkdown" <<EOF
 #!/usr/bin/env bash
-exec python3 "${APP_DIR}/markview.py" "\$@"
+exec python3 "${APP_DIR}/vertexmarkdown.py" "\$@"
 EOF
-chmod +x "${BIN_DIR}/markview"
+chmod +x "${BIN_DIR}/vertexmarkdown"
 
-# Icon — install all hicolor sizes that exist.
+# Icon â€” install all hicolor sizes that exist.
 for size in 16 32 48 64 128 256 512; do
   src="${APP_DIR}/icon-${size}.png"
   if [[ "${size}" == "512" ]]; then
@@ -28,15 +28,15 @@ for size in 16 32 48 64 128 256 512; do
   if [[ -f "${src}" ]]; then
     dest="${HICOLOR}/${size}x${size}/apps"
     mkdir -p "${dest}"
-    cp -f "${src}" "${dest}/markview.png"
+    cp -f "${src}" "${dest}/vertexmarkdown.png"
   fi
 done
 
 # Desktop entry with real paths substituted in.
 sed \
-  -e "s|HOME_MARKVIEW_PATH|${BIN_DIR}/markview|g" \
-  -e "s|HOME_MARKVIEW_ICON|markview|g" \
-  "${APP_DIR}/markview.desktop" > "${APPS_DIR}/markview.desktop"
+  -e "s|HOME_VERTEXMARKDOWN_PATH|${BIN_DIR}/vertexmarkdown|g" \
+  -e "s|HOME_VERTEXMARKDOWN_ICON|vertexmarkdown|g" \
+  "${APP_DIR}/vertexmarkdown.desktop" > "${APPS_DIR}/vertexmarkdown.desktop"
 
 # Refresh caches (best effort).
 command -v update-desktop-database >/dev/null && \
@@ -44,13 +44,14 @@ command -v update-desktop-database >/dev/null && \
 command -v gtk-update-icon-cache >/dev/null && \
   gtk-update-icon-cache -f -t "${HICOLOR}" >/dev/null 2>&1 || true
 
-echo "markview installed."
-echo "  CLI:     ${BIN_DIR}/markview"
-echo "  Desktop: ${APPS_DIR}/markview.desktop"
-echo "  Icon:    ${HICOLOR}/<size>/apps/markview.png"
+echo "VertexMarkdown installed."
+echo "  CLI:     ${BIN_DIR}/vertexmarkdown"
+echo "  Desktop: ${APPS_DIR}/vertexmarkdown.desktop"
+echo "  Icon:    ${HICOLOR}/<size>/apps/vertexmarkdown.png"
 echo
 case ":${PATH}:" in
   *":${BIN_DIR}:"*) ;;
   *) echo "Note: ${BIN_DIR} is not on PATH. Add it to your shell rc."
      echo "      export PATH=\"${BIN_DIR}:\$PATH\"" ;;
 esac
+

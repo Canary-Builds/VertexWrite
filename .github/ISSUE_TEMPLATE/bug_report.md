@@ -1,4 +1,4 @@
----
+﻿---
 name: Bug report
 about: Something broke or misbehaves
 title: "[bug] "
@@ -21,7 +21,7 @@ labels: ["bug", "triage"]
 
 ## Environment
 
-- markview version: (from `markview --version`)
+- VertexMarkdown version: (from `vertexmarkdown --version`)
 - OS / distro:
 - Desktop environment (GNOME / KDE / XFCE / other):
 - GTK theme:
@@ -37,7 +37,7 @@ labels: ["bug", "triage"]
 <summary>Click to expand</summary>
 
 ```
-(paste output of `markview your-file.md` from a terminal)
+(paste output of `vertexmarkdown your-file.md` from a terminal)
 ```
 
 </details>
@@ -45,3 +45,4 @@ labels: ["bug", "triage"]
 ## Screenshots
 
 <!-- Optional. -->
+

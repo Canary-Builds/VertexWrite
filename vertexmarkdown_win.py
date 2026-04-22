@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
-"""markview — minimal modern markdown viewer + editor for Windows.
+﻿#!/usr/bin/env python3
+"""VertexMarkdown â€” minimal modern markdown viewer + editor for Windows.
 
 PyQt6-based Windows port of the GTK3/WebKit2 Linux application.
-Reuses markview_core.py for all rendering and markdown processing.
+Reuses vertexmarkdown_core.py for all rendering and markdown processing.
 """
 
 import datetime
@@ -49,7 +49,7 @@ from PyQt6.QtWidgets import (
     QStatusBar, QTabWidget, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
-from markview_core import (
+from vertexmarkdown_core import (
     HEADING_RE,
     LIST_BULLET_RE,
     LIST_ORDERED_RE,
@@ -67,21 +67,21 @@ from markview_core import (
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.5.4"
+__version__ = "0.6.0"
 
-APP_NAME = "markview"
+APP_NAME = "VertexMarkdown"
 APP_DIR = Path(__file__).resolve().parent
 STYLE_PATH = APP_DIR / "style.css"
-CONFIG_DIR = Path(os.environ.get("APPDATA", str(Path.home()))) / "markview"
+CONFIG_DIR = Path(os.environ.get("APPDATA", str(Path.home()))) / "vertexmarkdown"
 STATE_DIR = Path(os.environ.get("LOCALAPPDATA",
-                                str(Path.home() / "AppData/Local"))) / "markview"
+                                str(Path.home() / "AppData/Local"))) / "vertexmarkdown"
 CUSTOM_CSS_PATH = CONFIG_DIR / "custom.css"
 SNAPSHOT_DIR = STATE_DIR / "snapshots"
 LAST_SHOWN_VERSION_PATH = STATE_DIR / "last-shown-version"
 
 DEVELOPER = "Canary Builds"
 WEBSITE = "https://canarybuilds.com/"
-REPO_URL = "https://github.com/Canary-Builds/markview"
+REPO_URL = "https://github.com/Canary-Builds/VertexMarkdown"
 ISSUES_URL = f"{REPO_URL}/issues/new/choose"
 WIKI_URL = f"{REPO_URL}/wiki"
 
@@ -102,7 +102,7 @@ MARKDOWN_SKIP_DIRS = {
 
 
 # ---------------------------------------------------------------------------
-# Helpers — wrappers around markview_core with Windows paths
+# Helpers â€” wrappers around vertexmarkdown_core with Windows paths
 # ---------------------------------------------------------------------------
 
 def render(md_text: str, theme: str, title: str,
@@ -111,7 +111,7 @@ def render(md_text: str, theme: str, title: str,
                    style_path=STYLE_PATH, custom_css_path=CUSTOM_CSS_PATH)
     # Replace the WebKit message bridge with QWebChannel bridge
     html = html.replace(
-        "try { window.webkit.messageHandlers.markview.postMessage("
+        "try { window.webkit.messageHandlers.vertexmarkdown.postMessage("
         "JSON.stringify(payload)); }\n    catch(e){}",
         "if(window._mvBridge) window._mvBridge.postMessage("
         "JSON.stringify(payload));"
@@ -205,18 +205,18 @@ def save_markdown_root(path: Path | None):
 
 def welcome_html(theme: str) -> str:
     md_text = (
-        f"# markview\n\n*v{__version__} — minimal, modern markdown viewer "
+        f"# VertexMarkdown\n\n*v{__version__} â€” minimal, modern markdown viewer "
         "+ editor.*\n\n"
-        "- **Open** — `Ctrl+O`, drag & drop, or CLI path\n"
-        "- **Edit mode** — `Ctrl+E` (reveals the edit toolbar)\n"
-        "- **Palette** — `Ctrl+P` · **Folder search** — `Ctrl+Shift+F`\n"
-        "- **Outline** — `Ctrl+Shift+O` · **Typewriter mode** — "
+        "- **Open** â€” `Ctrl+O`, drag & drop, or CLI path\n"
+        "- **Edit mode** â€” `Ctrl+E` (reveals the edit toolbar)\n"
+        "- **Palette** â€” `Ctrl+P` Â· **Folder search** â€” `Ctrl+Shift+F`\n"
+        "- **Outline** â€” `Ctrl+Shift+O` Â· **Typewriter mode** â€” "
         "`Ctrl+Shift+T`\n"
-        "- **Navigate** — `Alt+Left` / `Alt+Right`\n"
-        "- **Theme** — `Ctrl+D` · **Reload** — `Ctrl+R` · **Quit** — "
+        "- **Navigate** â€” `Alt+Left` / `Alt+Right`\n"
+        "- **Theme** â€” `Ctrl+D` Â· **Reload** â€” `Ctrl+R` Â· **Quit** â€” "
         "`Ctrl+Q`\n"
     )
-    return render(md_text, theme, "markview", APP_DIR)
+    return render(md_text, theme, APP_NAME, APP_DIR)
 
 
 def _detect_system_theme() -> str:
@@ -406,7 +406,7 @@ class CodeEditor(QPlainTextEdit):
 
 
 # ---------------------------------------------------------------------------
-# WebBridge — QWebChannel bridge for JS↔Python communication
+# WebBridge â€” QWebChannel bridge for JSâ†”Python communication
 # ---------------------------------------------------------------------------
 
 class WebBridge(QObject):
@@ -433,7 +433,7 @@ class WebBridge(QObject):
 
 class CommandPalette(QDialog):
     def __init__(self, parent, provider, on_select,
-                 placeholder="Type to filter…", min_query_chars=0,
+                 placeholder="Type to filterâ€¦", min_query_chars=0,
                  initial_query=""):
         super().__init__(parent, Qt.WindowType.Popup)
         self.provider = provider
@@ -496,7 +496,7 @@ class CommandPalette(QDialog):
         q = self.entry.text() or ""
         if len(q.strip()) < self.min_query_chars:
             item = QListWidgetItem(
-                f"Type at least {self.min_query_chars} characters…")
+                f"Type at least {self.min_query_chars} charactersâ€¦")
             item.setData(Qt.ItemDataRole.UserRole, None)
             self.listbox.addItem(item)
         else:
@@ -893,7 +893,7 @@ class Viewer(QMainWindow):
         layout.setSpacing(4)
 
         self.find_entry = QLineEdit()
-        self.find_entry.setPlaceholderText("Find…")
+        self.find_entry.setPlaceholderText("Findâ€¦")
         self.find_entry.textChanged.connect(self._on_find_changed)
         self.find_entry.returnPressed.connect(lambda: self._find_step(True))
         layout.addWidget(self.find_entry, 1)
@@ -1051,11 +1051,11 @@ class Viewer(QMainWindow):
             return action
 
         file_menu = mb.addMenu("&File")
-        add_menu_action(file_menu, "Open…", self._on_open_clicked, "Ctrl+O")
+        add_menu_action(file_menu, "Openâ€¦", self._on_open_clicked, "Ctrl+O")
         add_menu_action(file_menu, "New", self._on_new, "Ctrl+N")
         file_menu.addSeparator()
         add_menu_action(file_menu, "Save", lambda: self._save(), "Ctrl+S")
-        add_menu_action(file_menu, "Save As…", lambda: self._save_as(), "Ctrl+Shift+S")
+        add_menu_action(file_menu, "Save Asâ€¦", lambda: self._save_as(), "Ctrl+Shift+S")
         file_menu.addSeparator()
         add_menu_action(file_menu, "Reload", lambda: self._reload(), "Ctrl+R")
         file_menu.addSeparator()
@@ -1067,13 +1067,13 @@ class Viewer(QMainWindow):
         edit_menu.addSeparator()
         add_menu_action(
             edit_menu,
-            "Find…",
+            "Findâ€¦",
             lambda: self._toggle_find(not self.find_bar.isVisible()),
             "Ctrl+F",
         )
         add_menu_action(
             edit_menu,
-            "Search in folder…",
+            "Search in folderâ€¦",
             self._open_folder_search,
             "Ctrl+Shift+F",
         )
@@ -1109,7 +1109,7 @@ class Viewer(QMainWindow):
         )
         add_menu_action(view_menu, "Toggle Theme", self._toggle_theme, "Ctrl+D")
         view_menu.addSeparator()
-        add_menu_action(view_menu, "Command Palette…", self._open_palette, "Ctrl+P")
+        add_menu_action(view_menu, "Command Paletteâ€¦", self._open_palette, "Ctrl+P")
 
         help_menu = mb.addMenu("&Help")
         add_menu_action(help_menu, "Keyboard Shortcuts", self._show_shortcuts)
@@ -1373,7 +1373,7 @@ class Viewer(QMainWindow):
             else:
                 break
         if slug:
-            js = f"window.markview && window.markview.scrollToAnchor({json.dumps(slug)});"
+            js = f"window.vertexMarkdown && window.vertexMarkdown.scrollToAnchor({json.dumps(slug)});"
             self.webview.page().runJavaScript(js)
 
     # ---- task toggle (JS bridge) ---------------------------------------------
@@ -2491,3 +2491,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
