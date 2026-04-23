@@ -13,7 +13,7 @@
 #define MyAppExeName "vertexmarkdown.exe"
 
 [Setup]
-AppId={{B4A7C8D2-3E5F-4A6B-9C1D-8E2F7A3B5C4D}
+AppId={{CBDBB5F1-0875-446D-B179-6163A8F02D35}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
