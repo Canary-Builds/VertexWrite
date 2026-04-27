@@ -11,6 +11,7 @@ Download the latest `vertexmarkdown-<version>-win-setup.exe` from the GitHub Rel
 - https://github.com/Canary-Builds/VertexMarkdown/releases
 
 The Windows installer is built from the repo's release workflow and installs the packaged PyQt6 application.
+The same release page also publishes `vertexmarkdown-<version>-source.zip` and `vertexmarkdown-<version>-source.tar.gz` for source installs and packaging.
 
 ### Ubuntu App Center / APT (PPA)
 

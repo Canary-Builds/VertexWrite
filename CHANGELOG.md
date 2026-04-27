@@ -6,11 +6,14 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.6.0] â€” 2026-04-23
+## [0.6.0] â€” 2026-04-27
 
 ### Changed
 - **Full product rename to VertexMarkdown.** The application name, executable names, installer names, desktop entry, app IDs, config/state directories, documentation, and release workflow assets now use the VertexMarkdown branding consistently.
 - **Windows packaging outputs were renamed.** PyInstaller now builds `dist\\vertexmarkdown\\vertexmarkdown.exe` and Inno Setup now emits `vertexmarkdown-<version>-win-setup.exe`.
+
+### Added
+- **GitHub tag releases now ship source archives too.** In addition to the Windows installer, tagged releases now attach `vertexmarkdown-<version>-source.zip` and `vertexmarkdown-<version>-source.tar.gz` for source installs and downstream packaging.
 
 ### Fixed
 - **Windows runtime validation now covers the renamed bundle.** The source frontend imports cleanly, the packaged Qt bundle smoke test passes, and the rebuilt Windows installer is generated from the new names without stale legacy paths.

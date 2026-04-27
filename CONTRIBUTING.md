@@ -87,7 +87,7 @@ A smoke test script is welcome if you add one â€” see `docs/wiki/Developmen
 - CHANGELOG section moves from `[Unreleased]` to the new version heading.
 - Tag the commit: `git tag -a vX.Y.Z -m 'vX.Y.Z â€” summary'`.
 - Push `main` and the tag: `git push origin main --tags`.
-- Windows installer releases are published by GitHub Actions from version tags.
+- GitHub Actions publishes tagged release assets: the Windows installer plus `.zip` and `.tar.gz` source archives.
 
 ## Code of Conduct
 

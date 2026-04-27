@@ -146,6 +146,6 @@ If you added a feature, run through:
 3. Commit: `git commit -m 'Release vX.Y.Z'`.
 4. Tag: `git tag -a vX.Y.Z -m 'vX.Y.Z â€” summary'`.
 5. Push: `git push origin main --tags`.
-6. Tag pushes trigger the Windows release workflow, which builds and attaches the installer to the GitHub Release.
+6. Tag pushes trigger the release workflows, which attach the Windows installer plus `.zip` and `.tar.gz` source archives to the GitHub Release.
 
 

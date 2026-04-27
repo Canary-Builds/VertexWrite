@@ -1,0 +1,44 @@
+name: Release Source Archives
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-source-archives:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          version="${GITHUB_REF_NAME#v}"
+          prefix="vertexmarkdown-${version}/"
+          git archive --format=zip --prefix="${prefix}" -o "release-artifacts/vertexmarkdown-${version}-source.zip" "${GITHUB_SHA}"
+          git archive --format=tar.gz --prefix="${prefix}" -o "release-artifacts/vertexmarkdown-${version}-source.tar.gz" "${GITHUB_SHA}"
+
+      - name: Upload source archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vertexmarkdown-source-archives
+          path: release-artifacts/vertexmarkdown-*-source.*
+
+      - name: Attach source archives to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/vertexmarkdown-*-source.zip
+            release-artifacts/vertexmarkdown-*-source.tar.gz

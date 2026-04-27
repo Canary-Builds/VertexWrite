@@ -86,6 +86,7 @@ Open / New / Save Â· Toggle edit / split / preview Â· Outline Â· Typewrite
 ### Windows
 
 Download the latest Windows installer from [GitHub Releases](https://github.com/Canary-Builds/VertexMarkdown/releases).
+Tagged releases also publish `.zip` and `.tar.gz` source archives there for manual installs and downstream packaging.
 
 The Windows build ships as an `.exe` installer built with Inno Setup and includes the packaged PyQt6 runtime.
 
