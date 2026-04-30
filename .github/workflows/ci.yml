@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -29,13 +29,13 @@ jobs:
         run: python -m pip install --upgrade pip ruff pyflakes pytest markdown pygments
 
       - name: Syntax check
-        run: python3 -m py_compile vertexmarkdown.py vertexmarkdown_core.py
+        run: python3 -m py_compile vertexwrite.py vertexwrite_core.py
 
       - name: Ruff
-        run: ruff check --no-cache --select F,W,B,UP,E701,E702 vertexmarkdown.py vertexmarkdown_core.py
+        run: ruff check --no-cache --select F,W,B,UP,E701,E702 vertexwrite.py vertexwrite_core.py
 
       - name: Pyflakes
-        run: pyflakes vertexmarkdown.py vertexmarkdown_core.py
+        run: pyflakes vertexwrite.py vertexwrite_core.py
 
       - name: Pytest
         run: pytest -q
@@ -46,8 +46,8 @@ jobs:
           import ast
           from pathlib import Path
 
-          src = Path("vertexmarkdown.py").read_text(encoding="utf-8-sig")
-          tree = ast.parse(src, filename="vertexmarkdown.py")
+          src = Path("vertexwrite.py").read_text(encoding="utf-8-sig")
+          tree = ast.parse(src, filename="vertexwrite.py")
           defined = set()
 
           for node in tree.body:

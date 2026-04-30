@@ -1,0 +1,7 @@
+tar-ignore=.git
+tar-ignore=.craft
+tar-ignore=parts
+tar-ignore=prime
+tar-ignore=stage
+tar-ignore=overlay
+tar-ignore=*.snap

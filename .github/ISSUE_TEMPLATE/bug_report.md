@@ -1,4 +1,4 @@
-﻿---
+---
 name: Bug report
 about: Something broke or misbehaves
 title: "[bug] "
@@ -21,7 +21,7 @@ labels: ["bug", "triage"]
 
 ## Environment
 
-- VertexMarkdown version: (from `vertexmarkdown --version`)
+- VertexWrite version: (from `vertexwrite --version`)
 - OS / distro:
 - Desktop environment (GNOME / KDE / XFCE / other):
 - GTK theme:
@@ -37,7 +37,7 @@ labels: ["bug", "triage"]
 <summary>Click to expand</summary>
 
 ```
-(paste output of `vertexmarkdown your-file.md` from a terminal)
+(paste output of `vertexwrite your-file.md` from a terminal)
 ```
 
 </details>

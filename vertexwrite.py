@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""VertexMarkdown â€” minimal modern markdown viewer + editor for Linux."""
+#!/usr/bin/env python3
+"""VertexWrite — minimal modern markdown viewer + editor for Linux."""
 import os
 import re
 import sys
@@ -25,7 +25,7 @@ except ValueError:
     gi.require_version("GtkSource", "4")
 from gi.repository import Gtk, WebKit2, Gio, GLib, Gdk, GtkSource, Pango, GdkPixbuf  # noqa: E402
 
-from vertexmarkdown_core import (  # noqa: E402
+from vertexwrite_core import (  # noqa: E402
     LIST_BULLET_RE,
     LIST_ORDERED_RE,
     MD_LINK_RE,
@@ -44,27 +44,38 @@ from vertexmarkdown_core import (  # noqa: E402
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
-APP_ID = "com.canarybuilds.VertexMarkdown"
-APP_NAME = "VertexMarkdown"
+APP_ID = "com.canarybuilds.VertexWrite"
+APP_NAME = "VertexWrite"
+APP_SLUG = "vertexwrite"
+APP_CLI = "vertexwrite"
+LEGACY_APP_SLUGS = ("vertexmarkdown", "markview")
 APP_DIR = Path(__file__).resolve().parent
 STYLE_PATH = APP_DIR / "style.css"
-CONFIG_DIR = Path(
-    os.environ.get(
-        "XDG_CONFIG_HOME", str(
-            Path.home() / ".config"))) / "vertexmarkdown"
-STATE_DIR = Path(
-    os.environ.get(
-        "XDG_STATE_HOME", str(
-            Path.home() / ".local/state"))) / "vertexmarkdown"
+
+
+def _app_data_dir(env_var: str, fallback_base: Path) -> Path:
+    base = Path(os.environ.get(env_var, str(fallback_base)))
+    target = base / APP_SLUG
+    if target.exists():
+        return target
+    for slug in LEGACY_APP_SLUGS:
+        legacy = base / slug
+        if legacy.exists():
+            return legacy
+    return target
+
+
+CONFIG_DIR = _app_data_dir("XDG_CONFIG_HOME", Path.home() / ".config")
+STATE_DIR = _app_data_dir("XDG_STATE_HOME", Path.home() / ".local/state")
 CUSTOM_CSS_PATH = CONFIG_DIR / "custom.css"
 SNAPSHOT_DIR = STATE_DIR / "snapshots"
 LAST_SHOWN_VERSION_PATH = STATE_DIR / "last-shown-version"
 
 DEVELOPER = "Canary Builds"
 WEBSITE = "https://canarybuilds.com/"
-REPO_URL = "https://github.com/Canary-Builds/VertexMarkdown"
+REPO_URL = "https://github.com/Canary-Builds/vertexwrite"
 ISSUES_URL = f"{REPO_URL}/issues/new/choose"
 WIKI_URL = f"{REPO_URL}/wiki"
 
@@ -189,13 +200,13 @@ def save_markdown_root(path: Path | None):
 
 def welcome_html(theme: str) -> str:
     md_text = (
-        f"# VertexMarkdown\n\n*v{__version__} â€” minimal, modern markdown viewer + editor.*\n\n"
-        "- **Open** â€” `Ctrl+O`, drag & drop, or CLI path\n"
-        "- **Edit mode** â€” `Ctrl+E` (reveals the edit toolbar)\n"
-        "- **Palette** â€” `Ctrl+P` Â· **Folder search** â€” `Ctrl+Shift+F`\n"
-        "- **Outline** â€” `Ctrl+Shift+O` Â· **Typewriter mode** â€” `Ctrl+Shift+T`\n"
-        "- **Navigate** â€” `Alt+â†` / `Alt+â†’`\n"
-        "- **Theme** â€” `Ctrl+D` Â· **Reload** â€” `Ctrl+R` Â· **Quit** â€” `Ctrl+Q`\n"
+        f"# VertexWrite\n\n*v{__version__} — minimal, modern markdown viewer + editor.*\n\n"
+        "- **Open** — `Ctrl+O`, drag & drop, or CLI path\n"
+        "- **Edit mode** — `Ctrl+E` (reveals the edit toolbar)\n"
+        "- **Palette** — `Ctrl+P` · **Folder search** — `Ctrl+Shift+F`\n"
+        "- **Outline** — `Ctrl+Shift+O` · **Typewriter mode** — `Ctrl+Shift+T`\n"
+        "- **Navigate** — `Alt+←` / `Alt+→`\n"
+        "- **Theme** — `Ctrl+D` · **Reload** — `Ctrl+R` · **Quit** — `Ctrl+Q`\n"
     )
     return render(md_text, theme, APP_NAME, APP_DIR)
 
@@ -265,7 +276,7 @@ class CommandPalette(Gtk.Window):
             parent,
             provider,
             on_select,
-            placeholder="Type to filterâ€¦",
+            placeholder="Type to filter…",
             min_query_chars=0,
             initial_query=""):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
@@ -317,7 +328,7 @@ class CommandPalette(Gtk.Window):
             self.listbox.remove(c)
         q = self.entry.get_text() or ""
         if len(q.strip()) < self.min_query_chars:
-            items = [{"label": f"Type at least {self.min_query_chars} charactersâ€¦",
+            items = [{"label": f"Type at least {self.min_query_chars} characters…",
                       "sub": None, "key": None}]
         else:
             items = self.provider(q) or []
@@ -705,7 +716,7 @@ class Viewer(Gtk.ApplicationWindow):
                 "view-refresh-symbolic",
                 "Reload (Ctrl+R)",
                 lambda *_: self._reload()))
-        # Right side: hamburger (rightmost) â†’ theme to its left
+        # Right side: hamburger (rightmost) → theme to its left
         header.pack_end(self._build_menu())
         self.theme_btn = _icon_button(self._theme_icon(), "Theme (Ctrl+D)",
                                       self._toggle_theme)
@@ -714,7 +725,7 @@ class Viewer(Gtk.ApplicationWindow):
     def _build_menu(self):
         return _menu_button("open-menu-symbolic", "Menu", [
             ("Keyboard Shortcuts", self._show_shortcuts),
-            (f"Whatâ€™s New in {__version__}", self._show_whats_new),
+            (f"What’s New in {__version__}", self._show_whats_new),
             None,
             ("Documentation", lambda: self._open_url(WIKI_URL)),
             ("Report an Issue", lambda: self._open_url(ISSUES_URL)),
@@ -727,9 +738,9 @@ class Viewer(Gtk.ApplicationWindow):
 
     def _build_editor_widgets(self):
         ucm = WebKit2.UserContentManager()
-        ucm.register_script_message_handler("vertexmarkdown")
+        ucm.register_script_message_handler("vertexwrite")
         ucm.connect(
-            "script-message-received::vertexmarkdown",
+            "script-message-received::vertexwrite",
             self._on_script_message)
         self._ucm = ucm
         self.webview = WebKit2.WebView.new_with_user_content_manager(ucm)
@@ -812,7 +823,7 @@ class Viewer(Gtk.ApplicationWindow):
         # Ctrl-shortcuts)
         add(_icon_button("document-new-symbolic", "New (Ctrl+N)", self._on_new))
         add(_icon_button("document-save-symbolic",
-                         "Save (Ctrl+S) Â· Save As: Ctrl+Shift+S",
+                         "Save (Ctrl+S) · Save As: Ctrl+Shift+S",
                          lambda *_: self._save()))
         add(_separator())
 
@@ -861,9 +872,9 @@ class Viewer(Gtk.ApplicationWindow):
                           ]))
         add(_menu_button("insert-object-symbolic",
                          "Insert",
-                         [("Imageâ€¦",
+                         [("Image…",
                            lambda: self._insert_image()),
-                          ("Tableâ€¦",
+                          ("Table…",
                            lambda: self._insert_table_prompt()),
                              None,
                              ("Strikethrough",
@@ -909,7 +920,7 @@ class Viewer(Gtk.ApplicationWindow):
 
         bar.pack_start(_separator(), False, False, 0)
 
-        # Find toggle â€” synced with the search bar so the icon really toggles
+        # Find toggle — synced with the search bar so the icon really toggles
         self.find_btn = _toggle_icon("edit-find-symbolic", "Find (Ctrl+F)")
         self.find_btn.connect("toggled", self._on_find_toggled)
         bar.pack_start(self.find_btn, False, False, 0)
@@ -1438,13 +1449,13 @@ class Viewer(Gtk.ApplicationWindow):
         if words == 0:
             self.wc_label.set_text("")
         else:
-            self.wc_label.set_text(f"{words} words Â· {minutes} min read")
+            self.wc_label.set_text(f"{words} words · {minutes} min read")
         return False
 
     def _update_title(self):
         if self.current_path or self.is_untitled:
             name = self.current_path.name if self.current_path else "untitled.md"
-            dirty = "  â€¢" if self.editor_buffer.get_modified() else ""
+            dirty = "  •" if self.editor_buffer.get_modified() else ""
             self.header.props.title = f"{name}{dirty}"
             self.header.props.subtitle = (str(self.current_path.parent)
                                           if self.current_path else "(unsaved)")
@@ -1482,7 +1493,7 @@ class Viewer(Gtk.ApplicationWindow):
             else:
                 break
         if slug:
-            js = f"window.vertexMarkdown && window.vertexMarkdown.scrollToAnchor({
+            js = f"window.vertexWrite && window.vertexWrite.scrollToAnchor({
                 json.dumps(slug)});"
             try:
                 self.webview.run_javascript(js, None, None, None)
@@ -1694,7 +1705,7 @@ class Viewer(Gtk.ApplicationWindow):
         if self.current_path:
             assets = self.current_path.parent / "assets"
         else:
-            assets = Path.home() / "Pictures" / "vertexmarkdown"
+            assets = Path.home() / "Pictures" / "vertexwrite"
         try:
             assets.mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -1781,7 +1792,7 @@ class Viewer(Gtk.ApplicationWindow):
             self,
             provider=self._palette_items,
             on_select=self._palette_select,
-            placeholder="Jump to file, heading, or actionâ€¦").show_all()
+            placeholder="Jump to file, heading, or action…").show_all()
 
     def _open_folder_search(self, *_):
         base = (self.current_path.parent if self.current_path else Path.cwd())
@@ -1791,17 +1802,17 @@ class Viewer(Gtk.ApplicationWindow):
                 base,
                 q),
             on_select=self._palette_select,
-            placeholder=f"Search {base} â€¦",
+            placeholder=f"Search {base} …",
             min_query_chars=2).show_all()
 
     def _palette_items(self, q: str):
         ql = (q or "").lower().strip()
         items = []
         actions = [
-            ("Open fileâ€¦", "Ctrl+O", "action:open"),
+            ("Open file…", "Ctrl+O", "action:open"),
             ("New document", "Ctrl+N", "action:new"),
             ("Save", "Ctrl+S", "action:save"),
-            ("Save Asâ€¦", "Ctrl+Shift+S", "action:save_as"),
+            ("Save As…", "Ctrl+Shift+S", "action:save_as"),
             ("Toggle edit mode", "Ctrl+E", "action:edit"),
             ("Editor only", "", "action:editor_only"),
             ("Split view (live preview)", "", "action:split"),
@@ -1810,18 +1821,18 @@ class Viewer(Gtk.ApplicationWindow):
             ("Toggle typewriter mode", "Ctrl+Shift+T", "action:typewriter"),
             ("Reload", "Ctrl+R", "action:reload"),
             ("Toggle theme", "Ctrl+D", "action:theme"),
-            ("Search in folderâ€¦", "Ctrl+Shift+F", "action:folder_search"),
-            ("Open from URLâ€¦", "", "action:open_url"),
-            ("Insert tableâ€¦", "", "action:insert_table"),
-            ("Show all tasks in folderâ€¦", "", "action:tasks"),
+            ("Search in folder…", "Ctrl+Shift+F", "action:folder_search"),
+            ("Open from URL…", "", "action:open_url"),
+            ("Insert table…", "", "action:insert_table"),
+            ("Show all tasks in folder…", "", "action:tasks"),
             ("Show backlinks to this file", "", "action:backlinks"),
             ("Check links in current buffer", "", "action:link_check"),
-            ("View snapshot historyâ€¦", "", "action:snapshots"),
+            ("View snapshot history…", "", "action:snapshots"),
             ("Export as PDF (via pandoc)", "", "action:export_pdf"),
             ("Export as DOCX (via pandoc)", "", "action:export_docx"),
             ("Export as HTML (via pandoc)", "", "action:export_html"),
             ("Export as EPUB (via pandoc)", "", "action:export_epub"),
-            (f"Whatâ€™s New in {__version__}", "", "action:whats_new"),
+            (f"What’s New in {__version__}", "", "action:whats_new"),
             ("Keyboard Shortcuts", "", "action:shortcuts"),
             (f"About {APP_NAME}", "", "action:about"),
             (f"Visit {DEVELOPER} website", "", "action:website"),
@@ -1840,7 +1851,7 @@ class Viewer(Gtk.ApplicationWindow):
                 pass
         for h in extract_headings(src):
             items.append({"label": ("#" * h["level"]) + " " + h["title"],
-                          "sub": f"heading Â· line {h['line'] + 1}",
+                          "sub": f"heading · line {h['line'] + 1}",
                           "key": f"heading:{h['line']}"})
         folder = self.current_path.parent if self.current_path else None
         if folder and folder.is_dir():
@@ -1855,7 +1866,7 @@ class Viewer(Gtk.ApplicationWindow):
                     rel = f.relative_to(folder)
                 except ValueError:
                     rel = f
-                items.append({"label": f.name, "sub": f"file Â· {rel}",
+                items.append({"label": f.name, "sub": f"file · {rel}",
                               "key": f"file:{f}"})
         if not ql:
             return items[:PALETTE_ITEM_CAP]
@@ -1889,7 +1900,7 @@ class Viewer(Gtk.ApplicationWindow):
                         rel = f
                     snip = line.strip()
                     if len(snip) > 140:
-                        snip = snip[:140] + "â€¦"
+                        snip = snip[:140] + "…"
                     results.append({"label": snip or "(empty line match)",
                                     "sub": f"{rel}:{i + 1}",
                                     "key": f"file_line:{f}:{i}"})
@@ -1982,7 +1993,7 @@ class Viewer(Gtk.ApplicationWindow):
         d.set_default_size(520, 120)
         box = d.get_content_area()
         e = Gtk.Entry()
-        e.set_placeholder_text("https://â€¦")
+        e.set_placeholder_text("https://…")
         e.set_activates_default(True)
         e.set_margin_top(10)
         e.set_margin_bottom(10)
@@ -2093,7 +2104,7 @@ class Viewer(Gtk.ApplicationWindow):
                     if not m:
                         continue
                     _, box, content = m.groups()
-                    status = "â˜‘" if box.lower() == "x" else "â˜"
+                    status = "☑" if box.lower() == "x" else "☐"
                     label = f"{status} {content.strip()}"
                     if q and q not in label.lower() and q not in str(f).lower():
                         continue
@@ -2108,7 +2119,7 @@ class Viewer(Gtk.ApplicationWindow):
             return items or [
                 {"label": "No tasks found", "sub": str(base), "key": None}]
         CommandPalette(self, provider=provider, on_select=self._palette_select,
-                       placeholder=f"Tasks in {base} â€¦").show_all()
+                       placeholder=f"Tasks in {base} …").show_all()
 
     def _show_backlinks_palette(self, *_):
         if not self.current_path:
@@ -2156,7 +2167,7 @@ class Viewer(Gtk.ApplicationWindow):
                         continue
                     snip = line.strip()
                     if len(snip) > 140:
-                        snip = snip[:140] + "â€¦"
+                        snip = snip[:140] + "…"
                     try:
                         rel = f.relative_to(base)
                     except ValueError:
@@ -2168,7 +2179,7 @@ class Viewer(Gtk.ApplicationWindow):
             return results or [{"label": "No backlinks found",
                                 "sub": str(target_name), "key": None}]
         CommandPalette(self, provider=provider, on_select=self._palette_select,
-                       placeholder=f"Backlinks to {target_name} â€¦").show_all()
+                       placeholder=f"Backlinks to {target_name} …").show_all()
 
     def _link_integrity_palette(self, *_):
         base = self.current_path.parent if self.current_path else Path.cwd()
@@ -2188,7 +2199,7 @@ class Viewer(Gtk.ApplicationWindow):
                         1)[0]).resolve() if base else Path(url)
                 if not target.exists():
                     issues.append({"label": f"Missing: {url}",
-                                   "sub": f"line {i + 1} Â· {line.strip()[:120]}",
+                                   "sub": f"line {i + 1} · {line.strip()[:120]}",
                                    "key": f"heading_line:{i}"})
         if not issues:
             issues = [{"label": "All relative links resolve",
@@ -2239,7 +2250,7 @@ class Viewer(Gtk.ApplicationWindow):
         except OSError as exc:
             self._render_error(f"Could not read {snap}: {exc}")
             return
-        self.header.props.title = f"snapshot Â· {snap.stem}"
+        self.header.props.title = f"snapshot · {snap.stem}"
         self.header.props.subtitle = str(snap)
         self.webview.load_html(render(text, self.theme,
                                       f"{snap.stem} (snapshot)", snap.parent),
@@ -2516,7 +2527,7 @@ class Viewer(Gtk.ApplicationWindow):
         d.set_program_name(APP_NAME)
         d.set_version(__version__)
         d.set_comments("Minimal, modern markdown viewer + editor for Linux.")
-        d.set_copyright(f"Â© 2026 {DEVELOPER}")
+        d.set_copyright(f"© 2026 {DEVELOPER}")
         d.set_license_type(Gtk.License.MIT_X11)
         d.set_website(WEBSITE)
         d.set_website_label(WEBSITE.rstrip("/").split("//", 1)[-1])
@@ -2534,13 +2545,13 @@ class Viewer(Gtk.ApplicationWindow):
 
     def _show_whats_new(self, *_):
         text = self._latest_changelog_section()
-        d = Gtk.Dialog(title=f"Whatâ€™s new in {APP_NAME} {__version__}",
+        d = Gtk.Dialog(title=f"What’s new in {APP_NAME} {__version__}",
                        transient_for=self, modal=True)
         d.add_buttons("Close", Gtk.ResponseType.CLOSE)
         d.set_default_size(620, 560)
         web = WebKit2.WebView()
         web.get_settings().set_property("enable-javascript", False)
-        web.load_html(render(text, self.theme, "Whatâ€™s new", APP_DIR),
+        web.load_html(render(text, self.theme, "What’s new", APP_DIR),
                       APP_DIR.as_uri() + "/")
         scroller = Gtk.ScrolledWindow()
         scroller.set_hexpand(True)
@@ -2555,9 +2566,9 @@ class Viewer(Gtk.ApplicationWindow):
         candidates = [
             APP_DIR / "CHANGELOG.md",                      # flatpak/local copy
             APP_DIR.parent / "CHANGELOG.md",               # local dev layout
-            Path("/usr/share/doc") / APP_NAME / "CHANGELOG.md",
-            Path("/usr/share/doc") / APP_NAME / "CHANGELOG.md.gz",
-            Path("/usr/share/doc") / APP_NAME / "changelog.gz",
+            Path("/usr/share/doc") / APP_SLUG / "CHANGELOG.md",
+            Path("/usr/share/doc") / APP_SLUG / "CHANGELOG.md.gz",
+            Path("/usr/share/doc") / APP_SLUG / "changelog.gz",
         ]
         text = None
         found_unreadable = False
@@ -2630,7 +2641,7 @@ class Viewer(Gtk.ApplicationWindow):
         section.add(group("Editing", [
             ("<Primary>z", "Undo"),
             ("<Primary><Shift>z", "Redo"),
-            ("<Primary>x <Primary>c <Primary>v", "Cut Â· Copy Â· Smart paste"),
+            ("<Primary>x <Primary>c <Primary>v", "Cut · Copy · Smart paste"),
             ("<Alt>Up", "Move line up"),
             ("<Alt>Down", "Move line down"),
             ("Return", "Smart list continuation"),
@@ -2716,7 +2727,7 @@ class App(Gtk.Application):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        prog=APP_NAME,
+        prog=APP_CLI,
         description="Minimal modern markdown viewer + editor.")
     parser.add_argument("file", nargs="?", help="Path to a markdown file.")
     parser.add_argument("-V", "--version", action="version",
@@ -2739,4 +2750,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

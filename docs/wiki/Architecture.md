@@ -1,52 +1,52 @@
-﻿# Architecture
+# Architecture
 
-VertexMarkdown now has a shared rendering core plus two native frontends:
+VertexWrite now has a shared rendering core plus two native frontends:
 
-- `vertexmarkdown.py` for Linux (`GTK3 + WebKit2 + GtkSourceView`)
-- `vertexmarkdown_win.py` for Windows (`PyQt6 + QtWebEngine + QWebChannel`)
-- `vertexmarkdown_core.py` for shared markdown/rendering helpers
+- `vertexwrite.py` for Linux (`GTK3 + WebKit2 + GtkSourceView`)
+- `vertexwrite_win.py` for Windows (`PyQt6 + QtWebEngine + QWebChannel`)
+- `vertexwrite_core.py` for shared markdown/rendering helpers
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ Gtk.ApplicationWindow                                    â”‚
-â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-â”‚ â”‚ Gtk.HeaderBar                                        â”‚ â”‚
-â”‚ â”‚   [Open] [Edit toggle] [Reload] ...........  [Theme] â”‚ â”‚
-â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-â”‚ â”‚ Gtk.Revealer  (edit toolbar, slides down)            â”‚ â”‚
-â”‚ â”‚   [File] [History] [Clipboard] [Format] [View] [Find]â”‚ â”‚
-â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-â”‚ â”‚ Gtk.SearchBar (find in buffer)                       â”‚ â”‚
-â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚
-â”‚ â”‚ Gtk.Revealer    â”‚ Gtk.Box (content area)           â”‚   â”‚
-â”‚ â”‚  OutlineSidebar â”‚   preview | editor | Gtk.Paned    â”‚   â”‚
-â”‚ â”‚  (slides right) â”‚                                  â”‚   â”‚
-â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌──────────────────────────────────────────────────────────┐
+│ Gtk.ApplicationWindow                                    │
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ Gtk.HeaderBar                                        │ │
+│ │   [Open] [Edit toggle] [Reload] ...........  [Theme] │ │
+│ └──────────────────────────────────────────────────────┘ │
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ Gtk.Revealer  (edit toolbar, slides down)            │ │
+│ │   [File] [History] [Clipboard] [Format] [View] [Find]│ │
+│ └──────────────────────────────────────────────────────┘ │
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ Gtk.SearchBar (find in buffer)                       │ │
+│ └──────────────────────────────────────────────────────┘ │
+│ ┌─────────────────┬──────────────────────────────────┐   │
+│ │ Gtk.Revealer    │ Gtk.Box (content area)           │   │
+│ │  OutlineSidebar │   preview | editor | Gtk.Paned    │   │
+│ │  (slides right) │                                  │   │
+│ └─────────────────┴──────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## Rendering pipeline
 
 ```
 source (string)
-    â”‚
-    â”œâ”€ preprocess_transclusions  â”€â”€ resolves ![[other]] / ![[other#Section]]
-    â”‚
-    â”œâ”€ preprocess_tasks          â”€â”€ swaps `- [ ] foo` for inline HTML inputs
-    â”‚
-    â”œâ”€ markdown.Markdown         â”€â”€ with curated extensions
-    â”‚
-    â”œâ”€ inject <style> (base + pygments + user custom.css)
-    â”‚
-    â”œâ”€ inject <script> KaTeX + Mermaid (CDN)
-    â”‚
-    â”œâ”€ inject JS bridge           â”€â”€ scrollToAnchor, task click postMessage,
-    â”‚                                 mermaid.run, renderMathInElement
-    â”‚
-    â””â”€â–¶ native webview loads HTML
+    │
+    ├─ preprocess_transclusions  ── resolves ![[other]] / ![[other#Section]]
+    │
+    ├─ preprocess_tasks          ── swaps `- [ ] foo` for inline HTML inputs
+    │
+    ├─ markdown.Markdown         ── with curated extensions
+    │
+    ├─ inject <style> (base + pygments + user custom.css)
+    │
+    ├─ inject <script> KaTeX + Mermaid (CDN)
+    │
+    ├─ inject JS bridge           ── scrollToAnchor, task click postMessage,
+    │                                 mermaid.run, renderMathInElement
+    │
+    └─▶ native webview loads HTML
          Linux: WebKit2.WebView.load_html(html, base_uri)
          Windows: QWebEngineView.setHtml(html, base_url)
 ```
@@ -55,17 +55,17 @@ source (string)
 
 ```
 GtkSource.Buffer (language: 'markdown', undo levels 500)
-    â”‚
-    â”œâ”€ connect "changed"                â”€â”€ refresh heading cache, schedule live preview,
-    â”‚                                       schedule word count
-    â”œâ”€ connect "notify::cursor-position" â”€â”€ typewriter recenter, scroll-sync debounce
-    â”‚
+    │
+    ├─ connect "changed"                ── refresh heading cache, schedule live preview,
+    │                                       schedule word count
+    ├─ connect "notify::cursor-position" ── typewriter recenter, scroll-sync debounce
+    │
 GtkSource.View
-    â”‚
-    â”œâ”€ CSS provider (font)
-    â”œâ”€ connect "key-press-event"         â”€â”€ smart paste (Ctrl+V),
-    â”‚                                       smart list continuation (Enter),
-    â”‚                                       block move (Alt+â†‘/â†“)
+    │
+    ├─ CSS provider (font)
+    ├─ connect "key-press-event"         ── smart paste (Ctrl+V),
+    │                                       smart list continuation (Enter),
+    │                                       block move (Alt+↑/↓)
 ```
 
 ## Bridge layer
@@ -73,15 +73,15 @@ GtkSource.View
 Linux uses a WebKit `UserContentManager`:
 
 ```python
-ucm.register_script_message_handler("vertexmarkdown")
-ucm.connect("script-message-received::vertexmarkdown", self._on_script_message)
+ucm.register_script_message_handler("vertexwrite")
+ucm.connect("script-message-received::vertexwrite", self._on_script_message)
 webview = WebKit2.WebView.new_with_user_content_manager(ucm)
 ```
 
 In-page JS posts messages:
 
 ```js
-window.webkit.messageHandlers.vertexmarkdown.postMessage(JSON.stringify({...}));
+window.webkit.messageHandlers.vertexwrite.postMessage(JSON.stringify({...}));
 ```
 
 Payload types today:
@@ -100,9 +100,9 @@ Three sub-views when edit mode is on, each by reparenting the existing `preview_
 
 | Sub-view | Container |
 |---|---|
-| Editor | `content_box` â† `editor_scroller` |
-| Preview | `content_box` â† `preview_scroller` |
-| Split | `content_box` â† `Gtk.Paned(H)` with editor on the left, preview on the right |
+| Editor | `content_box` ← `editor_scroller` |
+| Preview | `content_box` ← `preview_scroller` |
+| Split | `content_box` ← `Gtk.Paned(H)` with editor on the left, preview on the right |
 
 A single feature flag (`_view_switching`) prevents radio-button toggle recursion.
 
@@ -122,7 +122,7 @@ Timer-based debouncing for expensive operations to avoid flicker or compute spik
 
 ## Snapshots
 
-`_write_to` always writes a dated copy to `~/.local/state/vertexmarkdown/snapshots/<sha1(path)>-<stem>/<YYYYMMDD-HHMMSS>.md`. Latest 30 retained per document. Snapshots are not threaded or indexed.
+`_write_to` always writes a dated copy to `~/.local/state/vertexwrite/snapshots/<sha1(path)>-<stem>/<YYYYMMDD-HHMMSS>.md`. Latest 30 retained per document. Snapshots are not threaded or indexed.
 
 ## Keyboard shortcut system
 
@@ -131,23 +131,23 @@ Timer-based debouncing for expensive operations to avoid flicker or compute spik
 ## Dependencies map
 
 ```
-vertexmarkdown_core.py
-â”‚
-â”œâ”€ markdown + pygments                           â”€â”€ shared render pipeline
-â”œâ”€ markdown.extensions.toc.slugify               â”€â”€ heading anchors
-â”œâ”€ html2text (optional)                          â”€â”€ smart-paste HTML
-â”œâ”€ html.parser (stdlib)                          â”€â”€ fallback for above
-â”œâ”€ urllib.request (stdlib)                       â”€â”€ open-from-URL
-â”œâ”€ subprocess (stdlib)                           â”€â”€ pandoc export
-â””â”€ hashlib (stdlib)                              â”€â”€ snapshot folder naming
+vertexwrite_core.py
+│
+├─ markdown + pygments                           ── shared render pipeline
+├─ markdown.extensions.toc.slugify               ── heading anchors
+├─ html2text (optional)                          ── smart-paste HTML
+├─ html.parser (stdlib)                          ── fallback for above
+├─ urllib.request (stdlib)                       ── open-from-URL
+├─ subprocess (stdlib)                           ── pandoc export
+└─ hashlib (stdlib)                              ── snapshot folder naming
 
-vertexmarkdown.py
-â”‚
-â””â”€ gi + Gtk/WebKit2/GtkSource/Gdk/GLib/Gio/Pango â”€â”€ Linux frontend
+vertexwrite.py
+│
+└─ gi + Gtk/WebKit2/GtkSource/Gdk/GLib/Gio/Pango ── Linux frontend
 
-vertexmarkdown_win.py
-â”‚
-â””â”€ PyQt6 + QtWebEngine + QWebChannel             â”€â”€ Windows frontend
+vertexwrite_win.py
+│
+└─ PyQt6 + QtWebEngine + QWebChannel             ── Windows frontend
 ```
 
 ## Adding a new palette action

@@ -1,12 +1,12 @@
-﻿# FAQ
+# FAQ
 
 ### Why another markdown editor?
 
-There are good ones (Typora, Obsidian, Marktext, Apostrophe, Ghostwriter) â€” most are either closed-source, Electron, or a full note database. VertexMarkdown is small, open-source, native, and intentionally scoped to *viewing and editing a single markdown file* with no sync, no database, and no tray daemon.
+There are good ones (Typora, Obsidian, Marktext, Apostrophe, Ghostwriter) — most are either closed-source, Electron, or a full note database. VertexWrite is small, open-source, native, and intentionally scoped to *viewing and editing a single markdown file* with no sync, no database, and no tray daemon.
 
 ### Why GTK3 and not GTK4?
 
-GTK3 + WebKit2 4.1 is everywhere on stock Linux desktops today. GTK4 + libadwaita is on the roadmap for 1.0 â€” see [ROADMAP.md](../../ROADMAP.md).
+GTK3 + WebKit2 4.1 is everywhere on stock Linux desktops today. GTK4 + libadwaita is on the roadmap for 1.0 — see [ROADMAP.md](../../ROADMAP.md).
 
 ### Is it available on macOS or Windows?
 
@@ -14,7 +14,7 @@ Windows is supported and shipped from GitHub Releases as an installer. macOS is 
 
 ### Does it sync my notes?
 
-No. It's a file editor. Point it at any folder â€” local, NFS, Syncthing, ownCloud, etc. Sync is the storage layer's job.
+No. It's a file editor. Point it at any folder — local, NFS, Syncthing, ownCloud, etc. Sync is the storage layer's job.
 
 ### Does it upload my files anywhere?
 
@@ -22,32 +22,32 @@ Only the KaTeX and Mermaid JavaScript libraries are fetched from `cdn.jsdelivr.n
 
 ### Can I use it without internet?
 
-Yes â€” every feature *except* live math rendering and Mermaid diagrams works offline. Math will appear as raw source, diagrams as a code block. The preview still renders, search still works, the editor is fully functional.
+Yes — every feature *except* live math rendering and Mermaid diagrams works offline. Math will appear as raw source, diagrams as a code block. The preview still renders, search still works, the editor is fully functional.
 
 ### Why do I need `gir1.2-gtksource-4` when the editor is just text?
 
 GtkSourceView gives us markdown syntax highlighting in the editor, line numbers, native undo/redo with a 500-level history, and the search context used by the find bar. A bare `GtkTextView` would force us to reimplement all of those.
 
-### My system theme is dark but VertexMarkdown rendered the preview in light mode
+### My system theme is dark but VertexWrite rendered the preview in light mode
 
 Theme detection checks `gtk-application-prefer-dark-theme` then falls back to a string match in `gtk-theme-name`. Some themes don't trigger either. Use `Ctrl+D` to toggle.
 
 ### Where does "paste image" save files?
 
 - When editing a saved document: `<doc-folder>/assets/image-YYYYMMDD-HHMMSS.png`, with a relative markdown link inserted.
-- When editing an untitled buffer: `~/Pictures/vertexmarkdown/`, with an absolute link.
+- When editing an untitled buffer: `~/Pictures/vertexwrite/`, with an absolute link.
 
 ### Can I export to PDF without pandoc?
 
-Not yet. `WebKit2.PrintOperation` â†’ PDF is planned for post-1.0 â€” see ROADMAP.
+Not yet. `WebKit2.PrintOperation` → PDF is planned for post-1.0 — see ROADMAP.
 
 ### How do I browse the snapshot history?
 
-`Ctrl+P` â†’ "View snapshot history". Latest 30 per document. Files live under `~/.local/state/vertexmarkdown/snapshots/`.
+`Ctrl+P` → "View snapshot history". Latest 30 per document. Files live under `~/.local/state/vertexwrite/snapshots/`.
 
 ### Can I change the keyboard shortcuts?
 
-Not at runtime. Edit `_setup_shortcuts` in `vertexmarkdown.py` and re-launch. A user-editable keymap is on the roadmap.
+Not at runtime. Edit `_setup_shortcuts` in `vertexwrite.py` and re-launch. A user-editable keymap is on the roadmap.
 
 ### Is there a JSON/YAML config file?
 
@@ -55,7 +55,7 @@ No. Drop-in files (`custom.css`) and environment variables (standard XDG ones) c
 
 ### Does the command palette support fuzzy matching?
 
-Substring for now, case-insensitive, over both the label and the subtitle. Real fuzzy (score + typo tolerance) is a small change if there's appetite â€” open an issue.
+Substring for now, case-insensitive, over both the label and the subtitle. Real fuzzy (score + typo tolerance) is a small change if there's appetite — open an issue.
 
 ### Can I have multiple windows / tabs?
 
@@ -67,6 +67,6 @@ The editor and renderer scale roughly linearly with document size. Anything unde
 
 ### Why do some of my `[ ]` checkboxes not render as clickable?
 
-Task preprocessing requires a list-item prefix: `- [ ]`, `* [ ]`, `+ [ ]`, or `1. [ ]`. `[ ]` on its own isn't a task in VertexMarkdown's dialect. Also: task syntax inside fenced code blocks is intentionally not rewritten.
+Task preprocessing requires a list-item prefix: `- [ ]`, `* [ ]`, `+ [ ]`, or `1. [ ]`. `[ ]` on its own isn't a task in VertexWrite's dialect. Also: task syntax inside fenced code blocks is intentionally not rewritten.
 
 

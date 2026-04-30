@@ -1,4 +1,4 @@
-﻿## Summary
+## Summary
 
 <!-- What this PR does, in one or two sentences. -->
 
@@ -18,7 +18,7 @@ Refs: #
 
 <!-- How you tested. Screenshots for UI changes. -->
 
-- [ ] `python3 -m py_compile vertexmarkdown.py` passes
+- [ ] `python3 -m py_compile vertexwrite.py` passes
 - [ ] Launched with a file, exercised the touched feature
 - [ ] Exercised related features that could regress:
   - [ ] Save + reload round-trip

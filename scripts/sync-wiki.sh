@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Sync docs/wiki/*.md into the GitHub Wiki repo, stripping `.md` from
 # inter-wiki markdown links so they render as wiki page links instead of
 # raw-file references.
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 OWNER="Canary-Builds"
-REPO="VertexMarkdown"
+REPO="VertexWrite"
 WIKI_URL="https://github.com/${OWNER}/${REPO}.wiki.git"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -39,7 +39,7 @@ for f in "${SRC}"/*.md; do
 done
 ALT="$(IFS='|'; echo "${PAGES[*]}")"
 
-# Transform links inside the wiki working copy only â€” docs/wiki/ stays as
+# Transform links inside the wiki working copy only — docs/wiki/ stays as
 # the canonical source with `.md` suffixes so in-tree browsing works.
 python3 - "$WORK" "$ALT" <<'PY'
 import re, sys, pathlib
@@ -67,5 +67,5 @@ fi
 git add -A
 git commit --quiet -m "Sync wiki from docs/wiki/ (${REPO}@$(git -C "${ROOT}" rev-parse --short HEAD))"
 git push --quiet origin HEAD
-echo "Wiki synced â†’ https://github.com/${OWNER}/${REPO}/wiki"
+echo "Wiki synced → https://github.com/${OWNER}/${REPO}/wiki"
 

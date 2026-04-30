@@ -7,7 +7,7 @@ from pathlib import Path
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
-    base = repo_root / "dist" / "vertexmarkdown" / "_internal"
+    base = repo_root / "dist" / "vertexwrite" / "_internal"
     qt_bin = base / "PyQt6" / "Qt6" / "bin"
 
     if not qt_bin.is_dir():

@@ -1,0 +1,54 @@
+app-id: com.canarybuilds.VertexWrite
+runtime: org.gnome.Platform
+runtime-version: "49"
+sdk: org.gnome.Sdk
+command: vertexwrite
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --share=network
+  - --filesystem=home
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-download
+
+modules:
+  - name: python3-vertexwrite-deps
+    buildsystem: simple
+    build-commands:
+      - pip3 install --prefix=/app --ignore-installed --no-deps markdown-3.7.tar.gz pygments-2.18.0.tar.gz html2text-2024.2.26.tar.gz
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/54/28/3af612670f82f4c056911fbbbb42760255801b3068c48de792d354ff4472/markdown-3.7.tar.gz
+        sha256: 2ae2471477cfd02dbbf038d5d9bc226d40def84b4fe2986e49b59b6b472bbed2
+      - type: file
+        url: https://files.pythonhosted.org/packages/8e/62/8336eff65bcbc8e4cb5d05b55faf041285951b6e80f33e2bff2024788f31/pygments-2.18.0.tar.gz
+        sha256: 786ff802f32e91311bff3889f6e9a86e81505fe99f2735bb6d60ae0c5004f199
+      - type: file
+        url: https://files.pythonhosted.org/packages/1a/43/e1d53588561e533212117750ee79ad0ba02a41f52a08c1df3396bd466c05/html2text-2024.2.26.tar.gz
+        sha256: 05f8e367d15aaabc96415376776cdd11afd5127a77fce6e36afc60c563ca2c32
+
+  - name: vertexwrite
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 vertexwrite.py /app/lib/vertexwrite/vertexwrite.py
+      - install -Dm644 vertexwrite_core.py /app/lib/vertexwrite/vertexwrite_core.py
+      - install -Dm755 vertexwrite-wrapper /app/bin/vertexwrite
+      - install -Dm644 style.css /app/lib/vertexwrite/style.css
+      - install -Dm644 CHANGELOG.md /app/lib/vertexwrite/CHANGELOG.md
+      - install -Dm644 icon.png /app/lib/vertexwrite/icon.png
+      - install -Dm644 com.canarybuilds.VertexWrite.desktop /app/share/applications/com.canarybuilds.VertexWrite.desktop
+      - install -Dm644 com.canarybuilds.VertexWrite.metainfo.xml /app/share/metainfo/com.canarybuilds.VertexWrite.metainfo.xml
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/com.canarybuilds.VertexWrite.png
+    sources:
+      - type: git
+        url: https://github.com/Canary-Builds/vertexwrite.git
+        tag: v0.6.2
+      - type: file
+        path: vertexwrite-wrapper
+      - type: file
+        path: com.canarybuilds.VertexWrite.desktop
+      - type: file
+        path: com.canarybuilds.VertexWrite.metainfo.xml

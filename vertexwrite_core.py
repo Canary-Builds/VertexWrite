@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Core markdown/render/snapshot helpers for VertexMarkdown.
+#!/usr/bin/env python3
+"""Core markdown/render/snapshot helpers for VertexWrite.
 
 This module is intentionally GTK-free so core behavior can be tested and reused
 without pulling UI dependencies into the import graph.
@@ -288,14 +288,14 @@ def _js_bridge(theme: str) -> str:
     mermaid_theme = "dark" if theme == "dark" else "default"
     return f"""
 (function(){{
-  window.vertexMarkdown = window.vertexMarkdown || {{}};
-  window.vertexMarkdown.scrollToAnchor = function(slug){{
+  window.vertexWrite = window.vertexWrite || {{}};
+  window.vertexWrite.scrollToAnchor = function(slug){{
     if (!slug) return;
     var el = document.getElementById(slug);
     if (el) el.scrollIntoView({{block:'start', behavior:'auto'}});
   }};
   var post = function(payload){{
-    try {{ window.webkit.messageHandlers.vertexmarkdown.postMessage(JSON.stringify(payload)); }}
+    try {{ window.webkit.messageHandlers.vertexwrite.postMessage(JSON.stringify(payload)); }}
     catch(e){{}}
   }};
   document.querySelectorAll('input.mv-task').forEach(function(el){{

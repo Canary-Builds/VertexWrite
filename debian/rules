@@ -1,0 +1,41 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# No build step: VertexWrite is a Python script plus static assets.
+
+override_dh_auto_install:
+	install -d debian/vertexwrite/usr/bin
+	install -d debian/vertexwrite/usr/lib/vertexwrite
+	install -d debian/vertexwrite/usr/share/applications
+	install -d debian/vertexwrite/usr/share/metainfo
+	install -d debian/vertexwrite/usr/share/icons/hicolor/16x16/apps
+	install -d debian/vertexwrite/usr/share/icons/hicolor/32x32/apps
+	install -d debian/vertexwrite/usr/share/icons/hicolor/48x48/apps
+	install -d debian/vertexwrite/usr/share/icons/hicolor/64x64/apps
+	install -d debian/vertexwrite/usr/share/icons/hicolor/128x128/apps
+	install -d debian/vertexwrite/usr/share/icons/hicolor/256x256/apps
+	install -d debian/vertexwrite/usr/share/icons/hicolor/512x512/apps
+
+	install -m755 debian/vertexwrite.launcher debian/vertexwrite/usr/bin/vertexwrite
+	install -m755 vertexwrite.py debian/vertexwrite/usr/lib/vertexwrite/vertexwrite.py
+	install -m644 vertexwrite_core.py debian/vertexwrite/usr/lib/vertexwrite/vertexwrite_core.py
+	install -m644 style.css debian/vertexwrite/usr/lib/vertexwrite/style.css
+	install -m644 debian/vertexwrite.desktop debian/vertexwrite/usr/share/applications/vertexwrite.desktop
+	install -m644 debian/vertexwrite.metainfo.xml debian/vertexwrite/usr/share/metainfo/vertexwrite.metainfo.xml
+
+	install -m644 icon-16.png debian/vertexwrite/usr/share/icons/hicolor/16x16/apps/vertexwrite.png
+	install -m644 icon-32.png debian/vertexwrite/usr/share/icons/hicolor/32x32/apps/vertexwrite.png
+	install -m644 icon-48.png debian/vertexwrite/usr/share/icons/hicolor/48x48/apps/vertexwrite.png
+	install -m644 icon-64.png debian/vertexwrite/usr/share/icons/hicolor/64x64/apps/vertexwrite.png
+	install -m644 icon-128.png debian/vertexwrite/usr/share/icons/hicolor/128x128/apps/vertexwrite.png
+	install -m644 icon-256.png debian/vertexwrite/usr/share/icons/hicolor/256x256/apps/vertexwrite.png
+	install -m644 icon.png debian/vertexwrite/usr/share/icons/hicolor/512x512/apps/vertexwrite.png
+
+
+override_dh_auto_test:
+	python3 -c "import py_compile; py_compile.compile('vertexwrite.py', cfile='debian/.vertexwrite.pyc', doraise=True)"
+	desktop-file-validate debian/vertexwrite.desktop
+	appstreamcli validate --no-net debian/vertexwrite.metainfo.xml

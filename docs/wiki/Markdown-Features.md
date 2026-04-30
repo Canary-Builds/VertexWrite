@@ -1,6 +1,6 @@
-﻿# Markdown Features
+# Markdown Features
 
-VertexMarkdown uses Python-Markdown with a curated extension set, plus two custom preprocessors (task lists, transclusion) and a JS bridge for interactive elements.
+VertexWrite uses Python-Markdown with a curated extension set, plus two custom preprocessors (task lists, transclusion) and a JS bridge for interactive elements.
 
 ## Core extensions
 
@@ -26,7 +26,7 @@ VertexMarkdown uses Python-Markdown with a curated extension set, plus two custo
   - [ ] nested
 ```
 
-Each task line is rewritten to an inline `<input type="checkbox" class="mv-task" data-task-line="N">` before rendering. Clicking a checkbox in the preview sends a JSON message back through the WebKit bridge; VertexMarkdown flips `[ ]` â†” `[x]` in the source buffer (edit mode) or the file on disk (preview mode).
+Each task line is rewritten to an inline `<input type="checkbox" class="mv-task" data-task-line="N">` before rendering. Clicking a checkbox in the preview sends a JSON message back through the WebKit bridge; VertexWrite flips `[ ]` ↔ `[x]` in the source buffer (edit mode) or the file on disk (preview mode).
 
 Task syntax inside fenced code blocks is left alone.
 
@@ -77,8 +77,8 @@ Resolves relative to the current file's folder. `.md` extension is optional. Max
 
 Plus:
 
-- `Ctrl+V` on CSV/TSV clipboard â†’ auto-converts to a table.
-- Palette **Insert tableâ€¦** â†’ rows Ã— columns dialog.
+- `Ctrl+V` on CSV/TSV clipboard → auto-converts to a table.
+- Palette **Insert table…** → rows × columns dialog.
 
 ## Footnotes, def lists, admonitions
 
@@ -102,7 +102,7 @@ Term
 
 ## Custom CSS
 
-Any CSS at `~/.config/vertexmarkdown/custom.css` is appended to the preview stylesheet on every render. Override anything from `style.css` (light/dark variables, typography, etc.). See [Configuration](Configuration.md#custom-css).
+Any CSS at `~/.config/vertexwrite/custom.css` is appended to the preview stylesheet on every render. Override anything from `style.css` (light/dark variables, typography, etc.). See [Configuration](Configuration.md#custom-css).
 
 ## Not supported (yet)
 

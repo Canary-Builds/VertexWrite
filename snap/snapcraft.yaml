@@ -1,0 +1,69 @@
+name: vertexwrite
+base: core24
+version: "0.6.2"
+title: VertexWrite
+summary: Minimal modern markdown viewer and editor
+description: |
+  VertexWrite is a GTK3/WebKit markdown viewer and editor for Linux.
+  It provides a clean preview mode, split live editing, command palette
+  navigation, folder search, and export helpers.
+license: MIT
+website:
+  - https://github.com/Canary-Builds/vertexwrite
+source-code:
+  - https://github.com/Canary-Builds/vertexwrite
+issues:
+  - https://github.com/Canary-Builds/vertexwrite/issues
+contact:
+  - mark@canarybuilds.com
+  - https://canarybuilds.com/
+
+grade: stable
+confinement: strict
+
+apps:
+  vertexwrite:
+    command: usr/bin/vertexwrite
+    desktop: usr/share/applications/vertexwrite.desktop
+    extensions: [gnome]
+    plugs:
+      - home
+      - network
+      - wayland
+      - x11
+      - desktop
+      - desktop-legacy
+      - opengl
+      - gsettings
+
+parts:
+  vertexwrite:
+    plugin: nil
+    source: .
+    build-packages:
+      - python3
+    stage-packages:
+      - python3
+      - python3-gi
+      - python3-markdown
+      - python3-pygments
+      - python3-html2text
+      - gir1.2-gtk-3.0
+      - gir1.2-webkit2-4.1
+      - gir1.2-gtksource-4
+    override-build: |
+      craftctl default
+      install -Dm755 vertexwrite.py "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/vertexwrite.py"
+      install -Dm644 vertexwrite_core.py "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/vertexwrite_core.py"
+      install -Dm644 style.css "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/style.css"
+      install -Dm644 CHANGELOG.md "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/CHANGELOG.md"
+      install -Dm644 icon.png "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/icon.png"
+      install -Dm755 snap/local/vertexwrite-wrapper "$CRAFT_PART_INSTALL/usr/bin/vertexwrite"
+      install -Dm644 snap/local/vertexwrite.desktop "$CRAFT_PART_INSTALL/usr/share/applications/vertexwrite.desktop"
+      install -Dm644 icon-16.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/16x16/apps/vertexwrite.png"
+      install -Dm644 icon-32.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/32x32/apps/vertexwrite.png"
+      install -Dm644 icon-48.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/48x48/apps/vertexwrite.png"
+      install -Dm644 icon-64.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/64x64/apps/vertexwrite.png"
+      install -Dm644 icon-128.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/128x128/apps/vertexwrite.png"
+      install -Dm644 icon-256.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/256x256/apps/vertexwrite.png"
+      install -Dm644 icon.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/512x512/apps/vertexwrite.png"

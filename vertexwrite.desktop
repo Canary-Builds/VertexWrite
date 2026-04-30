@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=VertexMarkdown
+Name=VertexWrite
 GenericName=Markdown Viewer
 Comment=Minimal, modern markdown viewer
-Exec=HOME_VERTEXMARKDOWN_PATH %F
-Icon=HOME_VERTEXMARKDOWN_ICON
+Exec=HOME_VERTEXWRITE_PATH %F
+Icon=HOME_VERTEXWRITE_ICON
 Terminal=false
 Categories=Office;Viewer;Utility;
 MimeType=text/markdown;text/x-markdown;text/plain;

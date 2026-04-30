@@ -3,7 +3,7 @@ import os
 import glob
 
 a = Analysis(
-    ['vertexmarkdown_win.py'],
+    ['vertexwrite_win.py'],
     pathex=[],
     binaries=[],
     datas=[
@@ -15,7 +15,7 @@ a = Analysis(
         ('icon-64.png', '.'),
         ('icon-128.png', '.'),
         ('icon-256.png', '.'),
-        ('vertexmarkdown_core.py', '.'),
+        ('vertexwrite_core.py', '.'),
         ('CHANGELOG.md', '.'),
     ],
     hiddenimports=[
@@ -110,7 +110,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='vertexmarkdown',
+    name='vertexwrite',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -121,7 +121,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='vertexmarkdown.ico',
+    icon='vertexwrite.ico',
     version='version_info.txt',
 )
 
@@ -132,5 +132,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='vertexmarkdown',
+    name='vertexwrite',
 )

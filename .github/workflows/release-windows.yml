@@ -1,4 +1,4 @@
-﻿name: Release Windows Installer
+name: Release Windows Installer
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Existing tag to build and attach to a GitHub Release (for example v0.6.1)"
+        description: "Existing tag to build and attach to a GitHub Release (for example v0.6.2)"
         required: false
         type: string
 
@@ -45,7 +45,7 @@ jobs:
 
       - name: Build Windows bundle
         shell: pwsh
-        run: python -m PyInstaller --clean -y vertexmarkdown.spec
+        run: python -m PyInstaller --clean -y vertexwrite.spec
 
       - name: Smoke-test packaged Qt bundle
         shell: pwsh
@@ -59,13 +59,13 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vertexmarkdown-windows-installer
-          path: installer_output\vertexmarkdown-*-win-setup.exe
+          name: vertexwrite-windows-installer
+          path: installer_output\vertexwrite-*-win-setup.exe
 
       - name: Attach installer to GitHub Release
         if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-          files: installer_output\vertexmarkdown-*-win-setup.exe
+          files: installer_output\vertexwrite-*-win-setup.exe
 

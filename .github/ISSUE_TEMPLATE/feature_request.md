@@ -1,4 +1,4 @@
-﻿---
+---
 name: Feature request
 about: Suggest a capability
 title: "[feat] "
@@ -11,11 +11,11 @@ labels: ["enhancement"]
 
 ## Proposed solution
 
-<!-- What you'd like VertexMarkdown to do. UI sketch or keyboard shortcut if relevant. -->
+<!-- What you'd like VertexWrite to do. UI sketch or keyboard shortcut if relevant. -->
 
 ## Alternatives considered
 
-<!-- Other tools that do it; why their approach does/doesn't fit VertexMarkdown. -->
+<!-- Other tools that do it; why their approach does/doesn't fit VertexWrite. -->
 
 ## Scope check
 

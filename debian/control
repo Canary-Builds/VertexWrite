@@ -1,0 +1,34 @@
+Source: vertexwrite
+Section: editors
+Priority: optional
+Maintainer: Soho <262048121+cnysoho@users.noreply.github.com>
+Build-Depends:
+ appstream,
+ debhelper-compat (= 13),
+ desktop-file-utils,
+ python3
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/Canary-Builds/vertexwrite
+Vcs-Git: https://github.com/Canary-Builds/vertexwrite.git
+Vcs-Browser: https://github.com/Canary-Builds/vertexwrite
+
+Package: vertexwrite
+Architecture: all
+Depends:
+ ${misc:Depends},
+ python3,
+ python3-gi,
+ python3-markdown,
+ python3-pygments,
+ gir1.2-gtk-3.0,
+ gir1.2-webkit2-4.1,
+ gir1.2-gtksource-4
+Recommends:
+ pandoc,
+ python3-html2text
+Description: Minimal modern markdown viewer and editor for Linux
+ VertexWrite is a GTK3/WebKit desktop app for reading and editing markdown files
+ without Electron. It provides preview mode, live split view editing,
+ syntax highlighting, command palette navigation, folder search,
+ checkbox/task toggling, and optional export through pandoc.

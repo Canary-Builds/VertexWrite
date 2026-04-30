@@ -1,37 +1,37 @@
-﻿# Installation
+# Installation
 
-VertexMarkdown can be installed on Windows from GitHub Releases, on Linux from Ubuntu PPA (`apt`), Snapcraft, Flathub (Flatpak), or from source.
+VertexWrite can be installed on Windows from GitHub Releases, on Linux from Ubuntu PPA (`apt`), Snapcraft, Flathub (Flatpak), or from source.
 
 ## Quick install (recommended)
 
 ### Windows installer
 
-Download the latest `vertexmarkdown-<version>-win-setup.exe` from the GitHub Releases page:
+Download the latest `vertexwrite-<version>-win-setup.exe` from the GitHub Releases page:
 
-- https://github.com/Canary-Builds/VertexMarkdown/releases
+- https://github.com/Canary-Builds/vertexwrite/releases
 
 The Windows installer is built from the repo's release workflow and installs the packaged PyQt6 application.
-The same release page also publishes `vertexmarkdown-<version>-source.zip` and `vertexmarkdown-<version>-source.tar.gz` for source installs and packaging.
+The same release page also publishes `vertexwrite-<version>-source.zip` and `vertexwrite-<version>-source.tar.gz` for source installs and packaging.
 
 ### Ubuntu App Center / APT (PPA)
 
 ```bash
 sudo add-apt-repository ppa:mareekkk/canarybuilds
 sudo apt update
-sudo apt install vertexmarkdown
+sudo apt install vertexwrite
 ```
 
 ### Snapcraft
 
 ```bash
-sudo snap install vertexmarkdown
+sudo snap install vertexwrite
 ```
 
 ### Flatpak (Flathub)
 
 ```bash
-flatpak install flathub com.canarybuilds.VertexMarkdown
-flatpak run com.canarybuilds.VertexMarkdown
+flatpak install flathub com.canarybuilds.VertexWrite
+flatpak run com.canarybuilds.VertexWrite
 ```
 
 If Flathub says the app is not found yet, it means the submission is still under review/publishing.
@@ -90,8 +90,8 @@ PY
 ## Install from source
 
 ```bash
-git clone https://github.com/Canary-Builds/VertexMarkdown.git ~/VertexMarkdown
-cd ~/VertexMarkdown
+git clone https://github.com/Canary-Builds/vertexwrite.git ~/VertexWrite
+cd ~/VertexWrite
 ./install.sh
 ```
 
@@ -99,9 +99,9 @@ This creates:
 
 | Path | Purpose |
 |---|---|
-| `~/.local/bin/vertexmarkdown` | CLI wrapper |
-| `~/.local/share/applications/vertexmarkdown.desktop` | Desktop launcher entry |
-| `~/.local/share/icons/hicolor/<size>/apps/vertexmarkdown.png` | App icons |
+| `~/.local/bin/vertexwrite` | CLI wrapper |
+| `~/.local/share/applications/vertexwrite.desktop` | Desktop launcher entry |
+| `~/.local/share/icons/hicolor/<size>/apps/vertexwrite.png` | App icons |
 
 Ensure `~/.local/bin` is in your `PATH`:
 
@@ -112,15 +112,15 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ## Run
 
 ```bash
-vertexmarkdown
-vertexmarkdown README.md
-VertexMarkdown -V
+vertexwrite
+vertexwrite README.md
+VertexWrite -V
 ```
 
 Windows source run:
 
 ```powershell
-py .\vertexmarkdown_win.py
+py .\vertexwrite_win.py
 ```
 
 ## Windows build from source
@@ -134,13 +134,13 @@ Outputs:
 
 | Path | Purpose |
 |---|---|
-| `dist\vertexmarkdown\vertexmarkdown.exe` | packaged Windows app |
-| `installer_output\vertexmarkdown-<version>-win-setup.exe` | Windows installer |
+| `dist\vertexwrite\vertexwrite.exe` | packaged Windows app |
+| `installer_output\vertexwrite-<version>-win-setup.exe` | Windows installer |
 
 ## Uninstall source install
 
 ```bash
-~/vertexmarkdown/uninstall.sh
+~/vertexwrite/uninstall.sh
 ```
 
 
