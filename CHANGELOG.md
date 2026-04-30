@@ -6,6 +6,16 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.4] — 2026-05-01
+
+### Added
+- **Welcome actions for new documents, opening files, and showing the sidebar.** The start screen now exposes the common first actions directly instead of relying only on shortcuts or the header.
+- **Document sidebar layout.** `Ctrl+Shift+O` now opens a left pane with recent documents at the top and a folder tree at the bottom.
+
+### Changed
+- Opening a saved file while the sidebar is visible now binds the folder tree to that file's folder. If the sidebar is opened later, it initializes from the current file.
+- Sidebar wording in menus, shortcuts, and docs now reflects the recent-documents/folder-tree behavior.
+
 ## [0.6.3] — 2026-05-01
 
 ### Changed

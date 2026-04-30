@@ -18,7 +18,7 @@ All shortcuts are bound at the window level, so they work regardless of whether 
 | Shortcut | Action |
 |---|---|
 | `Ctrl+E` | Toggle edit mode (shows the edit toolbar) |
-| `Ctrl+Shift+O` | Toggle outline sidebar |
+| `Ctrl+Shift+O` | Toggle document sidebar |
 | `Ctrl+Shift+T` | Toggle typewriter mode |
 | `Ctrl+D` | Toggle light / dark theme |
 

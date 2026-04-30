@@ -4,7 +4,7 @@
 > GTK3 + WebKit on Linux. PyQt6 + QtWebEngine on Windows.
 > No Electron, no tray daemon, no account. Starts in under a second.
 
-[![version](https://img.shields.io/badge/version-0.6.3-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.6.4-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)](#install)
 [![snap](https://img.shields.io/badge/Snapcraft-vertexwrite-E95420?logo=snapcraft&logoColor=white)](https://snapcraft.io/vertexwrite)
@@ -33,9 +33,9 @@
 
 ## What it is
 
-A single Python script that turns any `.md` file into a clean, themeable reading view — hitting `Ctrl+E` flips it into a proper editor with a focused formatting toolbar, a command palette, folder-wide search, an outline sidebar, live split-view preview with scroll-sync, auto-save snapshots, and live math / diagrams.
+A single Python script that turns any `.md` file into a clean, themeable reading view — hitting `Ctrl+E` flips it into a proper editor with a focused formatting toolbar, a command palette, folder-wide search, a document sidebar with recents and a folder tree, live split-view preview with scroll-sync, auto-save snapshots, and live math / diagrams.
 
-The chrome stays minimal: **three buttons in the header**, one toolbar that only appears in edit mode, everything else is keyboard-driven.
+The chrome stays minimal: compact header buttons, one toolbar that only appears in edit mode, and keyboard access for everything else.
 
 ## Features
 
@@ -66,11 +66,11 @@ The chrome stays minimal: **three buttons in the header**, one toolbar that only
 ### Navigation
 - **Command palette** (`Ctrl+P`) — fuzzy jump to actions, headings, or files in the folder
 - **Folder full-text search** (`Ctrl+Shift+F`) — recursive `.md`, context snippets
-- **Outline sidebar** (`Ctrl+Shift+O`) — slide-in heading tree
+- **Document sidebar** (`Ctrl+Shift+O`) — recent documents on top, current folder tree below
 - **Back / forward** (`Alt+←` / `Alt+→`) — history of opened files + cursor lines
 
 ### Palette actions (Ctrl+P)
-Open / New / Save · Toggle edit / split / preview · Outline · Typewriter · Reload · Theme · Folder search · **Open from URL** · **Insert table** · **All tasks in folder** · **Backlinks to this file** · **Check links** · **Snapshot history** · **Export PDF / DOCX / HTML / EPUB** via pandoc.
+Open / New / Save · Toggle edit / split / preview · Sidebar · Typewriter · Reload · Theme · Folder search · **Open from URL** · **Insert table** · **All tasks in folder** · **Backlinks to this file** · **Check links** · **Snapshot history** · **Export PDF / DOCX / HTML / EPUB** via pandoc.
 
 ### Persistence
 - Every save writes a dated copy to `~/.local/state/vertexwrite/snapshots/`. Latest 30 per document; browse with the palette.
@@ -184,7 +184,7 @@ py .\vertexwrite_win.py README.md
 | `Ctrl+E` | Toggle edit mode |
 | `Ctrl+P` | Command palette |
 | `Ctrl+F` / `Ctrl+Shift+F` | Find in buffer / Search in folder |
-| `Ctrl+Shift+O` | Toggle outline sidebar |
+| `Ctrl+Shift+O` | Toggle document sidebar |
 | `Ctrl+Shift+T` | Toggle typewriter mode |
 | `Ctrl+R` | Reload from disk |
 | `Ctrl+D` | Toggle theme |
@@ -255,5 +255,4 @@ MIT — see [LICENSE](LICENSE).
 - [python-markdown](https://python-markdown.github.io/) + [Pygments](https://pygments.org/) for rendering
 - [GtkSourceView](https://wiki.gnome.org/Projects/GtkSourceView) for the editor
 - [KaTeX](https://katex.org/) and [Mermaid](https://mermaid.js.org/) for math and diagrams
-
 

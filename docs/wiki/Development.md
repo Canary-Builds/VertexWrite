@@ -136,7 +136,7 @@ If you added a feature, run through:
 
 1. Open a file → reload → save → edit mode → split view
 2. Command palette (Ctrl+P), folder search (Ctrl+Shift+F)
-3. Outline (Ctrl+Shift+O), typewriter (Ctrl+Shift+T)
+3. Sidebar (Ctrl+Shift+O), typewriter (Ctrl+Shift+T)
 4. Smart paste with an image, HTML, and CSV each
 
 ## Release process (maintainer)
@@ -147,5 +147,4 @@ If you added a feature, run through:
 4. Tag: `git tag -a vX.Y.Z -m 'vX.Y.Z — summary'`.
 5. Push: `git push origin main --tags`.
 6. Tag pushes trigger the release workflows, which attach the Windows installer plus `.zip` and `.tar.gz` source archives to the GitHub Release.
-
 

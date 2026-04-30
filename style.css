@@ -250,6 +250,34 @@ li:has(> input.mv-task) {
   margin-left: -22px;
 }
 
+.vw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 1.4em 0 1.6em;
+}
+
+.vw-action {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55em 0.95em;
+}
+
+.vw-action:hover { filter: brightness(1.05); }
+
+.vw-action.secondary {
+  background: var(--code-bg);
+  border-color: var(--border);
+  color: var(--fg);
+}
+
 /* print */
 @media print {
   html, body { background: #fff !important; color: #000 !important; }

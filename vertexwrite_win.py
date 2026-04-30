@@ -46,7 +46,8 @@ from PyQt6.QtWidgets import (
     QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMenu, QMenuBar, QMessageBox,
     QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QSplitter,
-    QStatusBar, QTabWidget, QToolBar, QToolButton, QVBoxLayout, QWidget,
+    QStatusBar, QTabWidget, QToolBar, QToolButton, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from vertexwrite_core import (
@@ -67,7 +68,7 @@ from vertexwrite_core import (
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.3"
+__version__ = "0.6.4"
 
 APP_NAME = "VertexWrite"
 APP_SLUG = "vertexwrite"
@@ -223,11 +224,17 @@ def welcome_html(theme: str) -> str:
     md_text = (
         f"# VertexWrite\n\n*v{__version__} — minimal, modern markdown viewer "
         "+ editor.*\n\n"
+        '<div class="vw-actions">\n'
+        '<button type="button" class="vw-action" data-vw-action="new">New document</button>\n'
+        '<button type="button" class="vw-action secondary" data-vw-action="open">Open file</button>\n'
+        '<button type="button" class="vw-action secondary" data-vw-action="sidebar">Show sidebar</button>\n'
+        "</div>\n\n"
+        "- **New document** — `Ctrl+N` or File > New\n"
         "- **Open** — `Ctrl+O`, drag & drop, or CLI path\n"
+        "- **Sidebar** — `Ctrl+Shift+O` shows recent documents and the current folder tree\n"
         "- **Edit mode** — `Ctrl+E` (reveals the edit toolbar)\n"
         "- **Palette** — `Ctrl+P` · **Folder search** — `Ctrl+Shift+F`\n"
-        "- **Outline** — `Ctrl+Shift+O` · **Typewriter mode** — "
-        "`Ctrl+Shift+T`\n"
+        "- **Typewriter mode** — `Ctrl+Shift+T`\n"
         "- **Navigate** — `Alt+Left` / `Alt+Right`\n"
         "- **Theme** — `Ctrl+D` · **Reload** — `Ctrl+R` · **Quit** — "
         "`Ctrl+Q`\n"
@@ -427,12 +434,18 @@ class CodeEditor(QPlainTextEdit):
 
 class WebBridge(QObject):
     taskToggled = pyqtSignal(int, bool)
+    appActionRequested = pyqtSignal(str)
 
     @pyqtSlot(str)
     def postMessage(self, msg: str):
         try:
             data = json.loads(msg)
         except (json.JSONDecodeError, TypeError):
+            return
+        if data.get("type") == "app_action":
+            action = data.get("action")
+            if isinstance(action, str) and action:
+                self.appActionRequested.emit(action)
             return
         if data.get("type") == "task_toggle":
             try:
@@ -544,10 +557,10 @@ class CommandPalette(QDialog):
 
 
 # ---------------------------------------------------------------------------
-# Outline Sidebar
+# Document Sidebar
 # ---------------------------------------------------------------------------
 
-class OutlineSidebar(QWidget):
+class DocumentSidebar(QWidget):
     jumpRequested = pyqtSignal(int)
     fileOpenRequested = pyqtSignal(str)
     chooseFolderRequested = pyqtSignal()
@@ -558,61 +571,50 @@ class OutlineSidebar(QWidget):
         self.setMinimumWidth(260)
         self.setMaximumWidth(360)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(6, 8, 6, 6)
+        layout.setSpacing(6)
 
-        self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: none; }
-            QTabBar::tab { padding: 6px 14px; }
-        """)
+        title = QLabel("Documents")
+        title.setStyleSheet("color: #8b949e; font-weight: 600;")
+        layout.addWidget(title)
 
-        # Outline tab
-        self.outline_list = QListWidget()
-        self.outline_list.itemClicked.connect(self._on_outline_clicked)
-        self.tabs.addTab(self.outline_list, "Outline")
-
-        # History tab
+        history_title = QLabel("Recent documents")
+        history_title.setStyleSheet("color: #8b949e;")
+        layout.addWidget(history_title)
         self.history_list = QListWidget()
+        self.history_list.setMaximumHeight(190)
         self.history_list.itemClicked.connect(self._on_history_clicked)
-        self.tabs.addTab(self.history_list, "History")
+        layout.addWidget(self.history_list)
 
-        # Markdown tab
-        md_widget = QWidget()
-        md_layout = QVBoxLayout(md_widget)
-        md_layout.setContentsMargins(4, 4, 4, 4)
-
-        btn_row = QHBoxLayout()
+        folder_row = QHBoxLayout()
+        folder_title = QLabel("Folder tree")
+        folder_title.setStyleSheet("color: #8b949e;")
         choose_btn = QPushButton("Choose Folder")
         choose_btn.clicked.connect(self.chooseFolderRequested.emit)
         rescan_btn = QPushButton("Rescan")
         rescan_btn.clicked.connect(self.rescanFolderRequested.emit)
-        btn_row.addWidget(choose_btn)
-        btn_row.addWidget(rescan_btn)
-        btn_row.addStretch()
-        md_layout.addLayout(btn_row)
+        folder_row.addWidget(folder_title)
+        folder_row.addStretch()
+        folder_row.addWidget(choose_btn)
+        folder_row.addWidget(rescan_btn)
+        layout.addLayout(folder_row)
 
         self.md_folder_label = QLabel("No folder selected")
         self.md_folder_label.setStyleSheet("color: #8b949e; padding: 2px 8px;")
-        md_layout.addWidget(self.md_folder_label)
+        layout.addWidget(self.md_folder_label)
 
         self.md_status_label = QLabel("")
         self.md_status_label.setStyleSheet("color: #8b949e; padding: 2px 8px;")
-        md_layout.addWidget(self.md_status_label)
+        layout.addWidget(self.md_status_label)
 
-        self.markdown_list = QListWidget()
-        self.markdown_list.itemClicked.connect(self._on_markdown_clicked)
-        md_layout.addWidget(self.markdown_list)
-
-        self.tabs.addTab(md_widget, "Markdown")
-        layout.addWidget(self.tabs)
+        self.folder_tree = QTreeWidget()
+        self.folder_tree.setHeaderHidden(True)
+        self.folder_tree.itemClicked.connect(self._on_folder_tree_clicked)
+        layout.addWidget(self.folder_tree, 1)
 
     def update_outline(self, headings: list[dict]):
-        self.outline_list.clear()
-        for h in headings:
-            indent = "  " * (h["level"] - 1)
-            item = QListWidgetItem(f"{indent}{h['title']}")
-            item.setData(Qt.ItemDataRole.UserRole, h["line"])
-            self.outline_list.addItem(item)
+        # Kept for existing call sites; heading jumps remain in the palette.
+        return
 
     def update_history(self, paths: list[Path]):
         self.history_list.clear()
@@ -627,34 +629,52 @@ class OutlineSidebar(QWidget):
             self.history_list.addItem(item)
 
     def set_markdown_results(self, root, files, truncated, status):
-        self.markdown_list.clear()
+        self.folder_tree.clear()
         self.md_folder_label.setText(str(root) if root else "No folder selected")
         self.md_status_label.setText(status)
+        if root is None:
+            self.folder_tree.addTopLevelItem(QTreeWidgetItem(["No folder selected"]))
+            return
+        if not files:
+            self.folder_tree.addTopLevelItem(QTreeWidgetItem(["No markdown files"]))
+            return
+        root_resolved = root.resolve()
+        folder_nodes = {}
         for f in files:
-            if root:
-                try:
-                    rel = f.resolve().relative_to(root.resolve())
-                    sub_text = str(rel)
-                except ValueError:
-                    sub_text = str(f)
+            try:
+                rel = f.resolve().relative_to(root_resolved)
+                parts = rel.parts
+            except ValueError:
+                parts = (f.name,)
+            parent = None
+            for depth, folder in enumerate(parts[:-1]):
+                key = parts[:depth + 1]
+                if key not in folder_nodes:
+                    node = QTreeWidgetItem([folder])
+                    if parent is None:
+                        self.folder_tree.addTopLevelItem(node)
+                    else:
+                        parent.addChild(node)
+                    folder_nodes[key] = node
+                parent = folder_nodes[key]
+            item = QTreeWidgetItem([parts[-1]])
+            item.setData(0, Qt.ItemDataRole.UserRole, str(f))
+            if parent is None:
+                self.folder_tree.addTopLevelItem(item)
             else:
-                sub_text = str(f)
-            item = QListWidgetItem(f"{f.name}\n  {sub_text}")
-            item.setData(Qt.ItemDataRole.UserRole, str(f))
-            self.markdown_list.addItem(item)
-
-    def _on_outline_clicked(self, item):
-        line = item.data(Qt.ItemDataRole.UserRole)
-        if line is not None:
-            self.jumpRequested.emit(line)
+                parent.addChild(item)
+        if truncated:
+            self.folder_tree.addTopLevelItem(
+                QTreeWidgetItem(["Scan limit reached; showing partial results."]))
+        self.folder_tree.expandAll()
 
     def _on_history_clicked(self, item):
         path = item.data(Qt.ItemDataRole.UserRole)
         if path is not None:
             self.fileOpenRequested.emit(path)
 
-    def _on_markdown_clicked(self, item):
-        path = item.data(Qt.ItemDataRole.UserRole)
+    def _on_folder_tree_clicked(self, item):
+        path = item.data(0, Qt.ItemDataRole.UserRole)
         if path is not None:
             self.fileOpenRequested.emit(path)
 
@@ -764,11 +784,14 @@ class Viewer(QMainWindow):
                                border-bottom: 2px solid transparent; }
                 QTabBar::tab:selected { color: #e6edf3;
                                         border-bottom-color: #2f81f7; }
-                QListWidget { background: #0d1117; color: #e6edf3;
-                              border: none; outline: none; }
+                QListWidget, QTreeWidget { background: #0d1117; color: #e6edf3;
+                                           border: none; outline: none; }
                 QListWidget::item { padding: 4px 8px; }
                 QListWidget::item:selected { background: #161b22; }
                 QListWidget::item:hover { background: #161b22; }
+                QTreeWidget::item { padding: 4px 8px; }
+                QTreeWidget::item:selected { background: #161b22; }
+                QTreeWidget::item:hover { background: #161b22; }
             """)
             self.editor.setStyleSheet("""
                 QPlainTextEdit { background: #0d1117; color: #e6edf3;
@@ -812,11 +835,14 @@ class Viewer(QMainWindow):
                                border-bottom: 2px solid transparent; }
                 QTabBar::tab:selected { color: #1f2328;
                                         border-bottom-color: #0969da; }
-                QListWidget { background: #ffffff; color: #1f2328;
-                              border: none; outline: none; }
+                QListWidget, QTreeWidget { background: #ffffff; color: #1f2328;
+                                           border: none; outline: none; }
                 QListWidget::item { padding: 4px 8px; }
                 QListWidget::item:selected { background: #f6f8fa; }
                 QListWidget::item:hover { background: #f6f8fa; }
+                QTreeWidget::item { padding: 4px 8px; }
+                QTreeWidget::item:selected { background: #f6f8fa; }
+                QTreeWidget::item:hover { background: #f6f8fa; }
             """)
             self.editor.setStyleSheet("""
                 QPlainTextEdit { background: #ffffff; color: #1f2328;
@@ -834,8 +860,19 @@ class Viewer(QMainWindow):
     def _build_web_bridge(self):
         self._bridge = WebBridge(self)
         self._bridge.taskToggled.connect(self._apply_task_toggle)
+        self._bridge.appActionRequested.connect(self._handle_app_action)
         self._channel = QWebChannel(self)
         self._channel.registerObject("bridge", self._bridge)
+
+    def _handle_app_action(self, action: str):
+        dispatch = {
+            "new": self._on_new,
+            "open": self._on_open_clicked,
+            "sidebar": lambda: self._set_sidebar_visible(True),
+        }
+        handler = dispatch.get(action)
+        if handler is not None:
+            handler()
 
     # ---- webview -------------------------------------------------------------
 
@@ -867,11 +904,11 @@ class Viewer(QMainWindow):
         self._modified = False
         self._update_title()
 
-    # ---- outline sidebar -----------------------------------------------------
+    # ---- document sidebar ----------------------------------------------------
 
     def _build_outline_sidebar(self):
-        self.sidebar = OutlineSidebar()
-        self.sidebar_dock = QDockWidget("Outline", self)
+        self.sidebar = DocumentSidebar()
+        self.sidebar_dock = QDockWidget("Documents", self)
         self.sidebar_dock.setWidget(self.sidebar)
         self.sidebar_dock.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
@@ -1116,7 +1153,7 @@ class Viewer(QMainWindow):
 
         view_menu = mb.addMenu("&View")
         add_menu_action(view_menu, "Toggle Edit Mode", self._toggle_edit, "Ctrl+E")
-        add_menu_action(view_menu, "Toggle Outline", self._toggle_outline, "Ctrl+Shift+O")
+        add_menu_action(view_menu, "Toggle Sidebar", self._toggle_outline, "Ctrl+Shift+O")
         add_menu_action(
             view_menu,
             "Toggle Typewriter Mode",
@@ -1229,6 +1266,8 @@ class Viewer(QMainWindow):
         self.is_untitled = False
         add_recent(path)
         self._refresh_history_sidebar()
+        if self.sidebar_dock.isVisible():
+            self._ensure_sidebar_folder_for_file(path)
         base_uri = path.parent.as_uri() + "/"
         self._load_html(render(text, self.theme, path.name, path.parent),
                         base_uri)
@@ -1267,6 +1306,7 @@ class Viewer(QMainWindow):
         self.is_untitled = False
         self._headings_cache = []
         if self.sidebar_dock.isVisible():
+            self._refresh_history_sidebar()
             self.sidebar.update_outline([])
         self._update_title()
         self.wc_label.setText("")
@@ -1673,7 +1713,7 @@ class Viewer(QMainWindow):
             ("Editor only", "", "action:editor_only"),
             ("Split view (live preview)", "", "action:split"),
             ("Preview only", "", "action:preview_only"),
-            ("Toggle outline sidebar", "Ctrl+Shift+O", "action:outline"),
+            ("Toggle sidebar", "Ctrl+Shift+O", "action:sidebar"),
             ("Toggle typewriter mode", "Ctrl+Shift+T", "action:typewriter"),
             ("Reload", "Ctrl+R", "action:reload"),
             ("Toggle theme", "Ctrl+D", "action:theme"),
@@ -1788,6 +1828,7 @@ class Viewer(QMainWindow):
                 "theme": self._toggle_theme,
                 "folder_search": self._open_folder_search,
                 "outline": self._toggle_outline,
+                "sidebar": self._toggle_outline,
                 "typewriter": self._toggle_typewriter,
                 "open_url": self._open_from_url_prompt,
                 "insert_table": self._insert_table_prompt,
@@ -2179,6 +2220,8 @@ class Viewer(QMainWindow):
         self.is_untitled = False
         add_recent(p)
         self._refresh_history_sidebar()
+        if self.sidebar_dock.isVisible():
+            self._ensure_sidebar_folder_for_file(p, force_rescan=True)
         self._watch_file(p)
         self._update_title()
         self.status_path_label.setText(str(p))
@@ -2286,10 +2329,45 @@ class Viewer(QMainWindow):
     # ---- sidebar helpers -----------------------------------------------------
 
     def _toggle_outline(self):
-        visible = self.sidebar_dock.isVisible()
-        self.sidebar_dock.setVisible(not visible)
-        if not visible:
+        self._set_sidebar_visible(not self.sidebar_dock.isVisible())
+
+    def _set_sidebar_visible(self, visible: bool):
+        self.sidebar_dock.setVisible(visible)
+        if visible:
+            self._refresh_history_sidebar()
+            if self.current_path:
+                self._ensure_sidebar_folder_for_file(self.current_path)
             self.sidebar.update_outline(self._headings_cache)
+
+    def _ensure_sidebar_folder_for_file(
+            self,
+            path: Path,
+            force_rescan: bool = False):
+        try:
+            file_path = path.resolve()
+        except OSError:
+            file_path = path
+        folder = file_path.parent
+        root = None
+        if self.markdown_root and self.markdown_root.is_dir():
+            try:
+                root = self.markdown_root.resolve()
+            except OSError:
+                root = None
+
+        needs_update = root is None
+        if root is not None:
+            try:
+                file_path.relative_to(root)
+            except ValueError:
+                needs_update = True
+
+        if needs_update:
+            self.markdown_root = folder
+            save_markdown_root(folder)
+            self._scan_markdown_folder()
+        elif force_rescan:
+            self._scan_markdown_folder()
 
     def _refresh_history_sidebar(self):
         recents = [p for p in load_recents() if p.exists()]
@@ -2421,7 +2499,7 @@ class Viewer(QMainWindow):
             ]),
             ("View", [
                 ("Ctrl+E", "Toggle edit mode"),
-                ("Ctrl+Shift+O", "Toggle outline sidebar"),
+                ("Ctrl+Shift+O", "Toggle sidebar"),
                 ("Ctrl+Shift+T", "Toggle typewriter mode"),
                 ("Ctrl+D", "Toggle theme"),
             ]),

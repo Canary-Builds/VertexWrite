@@ -307,6 +307,13 @@ def _js_bridge(theme: str) -> str:
       post({{type:'task_toggle', line: line, checked: el.checked}});
     }});
   }});
+  document.querySelectorAll('[data-vw-action]').forEach(function(el){{
+    el.addEventListener('click', function(ev){{
+      ev.preventDefault();
+      var action = el.getAttribute('data-vw-action');
+      if (action) post({{type:'app_action', action: action}});
+    }});
+  }});
   document.querySelectorAll('pre code.language-mermaid').forEach(function(c, i){{
     var div = document.createElement('div');
     div.className = 'mermaid';
@@ -445,4 +452,3 @@ def csv_to_markdown_table(text: str, sep: str) -> str:
     sep_row = "| " + " | ".join(["---"] * width) + " |"
     body = "\n".join(fmt(r) for r in cells[1:])
     return f"{header}\n{sep_row}\n{body}\n"
-

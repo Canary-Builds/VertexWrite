@@ -22,8 +22,8 @@ VertexWrite now has a shared rendering core plus two native frontends:
 │ └──────────────────────────────────────────────────────┘ │
 │ ┌─────────────────┬──────────────────────────────────┐   │
 │ │ Gtk.Revealer    │ Gtk.Box (content area)           │   │
-│ │  OutlineSidebar │   preview | editor | Gtk.Paned    │   │
-│ │  (slides right) │                                  │   │
+│ │  Document pane  │   preview | editor | Gtk.Paned    │   │
+│ │  recents + tree │                                  │   │
 │ └─────────────────┴──────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -164,5 +164,4 @@ vertexwrite_win.py
 2. Wire into `render()` before `markdown.Markdown(...)` is called.
 3. Respect fenced code blocks (`FENCE_RE`).
 4. Add tests to any smoke test script and a worked example in `docs/wiki/Markdown-Features.md`.
-
 

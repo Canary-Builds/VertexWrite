@@ -69,3 +69,18 @@ def test_preprocess_transclusions_inlines_markdown_file(tmp_path: Path):
     assert "Hello from child" in out
     assert "Before" in out and "After" in out
 
+
+def test_render_wires_app_action_bridge(tmp_path: Path):
+    style = tmp_path / "style.css"
+    custom_css = tmp_path / "custom.css"
+    style.write_text("", encoding="utf-8")
+    html = mv.render(
+        '<button data-vw-action="new">New</button>',
+        "light",
+        "Welcome",
+        tmp_path,
+        style_path=style,
+        custom_css_path=custom_css,
+    )
+    assert 'data-vw-action="new"' in html
+    assert "app_action" in html
