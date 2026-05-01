@@ -1,3 +1,11 @@
+vertexwrite (0.6.8+noble1) noble; urgency=medium
+
+  * Update the icon set to the new blue VertexWrite logo.
+  * Replace the GTK folder tree with a custom list layout so sidebar resizing
+    truncates names on the right instead of clipping their left side.
+
+ -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+
 vertexwrite (0.6.7+noble1) noble; urgency=medium
 
   * Separate the folder-tree gutter from the name column so sidebar resizing

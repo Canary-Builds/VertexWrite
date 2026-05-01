@@ -6,6 +6,14 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.8] — 2026-05-01
+
+### Changed
+- The app icon set now uses the new blue VertexWrite logo supplied as `vertexwrite-logo.png`.
+
+### Fixed
+- The Linux folder tree now uses a custom list layout instead of `Gtk.TreeView`, preventing GTK from clipping the left side of file and folder names while resizing the sidebar.
+
 ## [0.6.7] — 2026-05-01
 
 ### Fixed

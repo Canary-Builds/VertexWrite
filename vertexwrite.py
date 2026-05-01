@@ -48,7 +48,7 @@ from vertexwrite_core import (  # noqa: E402
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.7"
+__version__ = "0.6.8"
 
 APP_ID = "com.canarybuilds.VertexWrite"
 APP_NAME = "VertexWrite"
@@ -416,7 +416,7 @@ class DocumentSidebar(Gtk.Box):
             on_choose_markdown_folder,
             on_rescan_markdown_folder):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.set_size_request(260, -1)
+        self.set_size_request(160, -1)
         self.on_jump = on_jump
         self.on_open_history = on_open_history
         self.on_open_markdown = on_open_markdown
@@ -487,38 +487,19 @@ class DocumentSidebar(Gtk.Box):
         self.markdown_status_label.set_margin_end(10)
         self.markdown_status_label.set_margin_bottom(6)
 
-        self.folder_store = Gtk.TreeStore(str, str, str)
-        self.folder_tree = Gtk.TreeView(model=self.folder_store)
-        self.folder_tree.set_headers_visible(False)
-        self.folder_tree.set_level_indentation(0)
-        self.folder_tree.set_tooltip_column(2)
-        try:
-            self.folder_tree.set_enable_tree_lines(True)
-        except AttributeError:
-            pass
-        expander_renderer = Gtk.CellRendererText()
-        expander_column = Gtk.TreeViewColumn("", expander_renderer)
-        expander_column.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
-        expander_column.set_fixed_width(24)
-        expander_column.set_min_width(24)
-        expander_column.set_max_width(24)
-        self.folder_tree.append_column(expander_column)
-        self.folder_tree.set_expander_column(expander_column)
-        renderer = Gtk.CellRendererText()
-        renderer.set_property("ellipsize", Pango.EllipsizeMode.MIDDLE)
-        column = Gtk.TreeViewColumn("File", renderer, text=0)
-        column.set_expand(True)
-        self.folder_tree.append_column(column)
-        self.folder_tree.connect("row-activated", self._on_folder_tree_row)
+        self.folder_listbox = Gtk.ListBox()
+        self.folder_listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.folder_listbox.set_activate_on_single_click(True)
+        self.folder_listbox.connect("row-activated", self._on_folder_tree_row)
 
         self.folder_scroller = Gtk.ScrolledWindow()
         self.folder_scroller.set_hexpand(False)
         self.folder_scroller.set_vexpand(True)
         self.folder_scroller.set_policy(
-            Gtk.PolicyType.AUTOMATIC,
+            Gtk.PolicyType.NEVER,
             Gtk.PolicyType.AUTOMATIC,
         )
-        self.folder_scroller.add(self.folder_tree)
+        self.folder_scroller.add(self.folder_listbox)
 
         folder_box.pack_start(folder_header, False, False, 0)
         folder_box.pack_start(self.markdown_folder_label, False, False, 0)
@@ -532,6 +513,37 @@ class DocumentSidebar(Gtk.Box):
 
         self.update_history([])
         self.set_markdown_results(None, [], False, "Choose a folder to scan markdown files.")
+
+    def _folder_tree_row(
+            self,
+            name: str,
+            *,
+            depth: int = 0,
+            file_path: Path | None = None,
+            tooltip: str | None = None,
+            folder: bool = False):
+        row = Gtk.ListBoxRow()
+        row.file_path = file_path
+        row.set_tooltip_text(tooltip or name)
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        box.set_margin_top(3)
+        box.set_margin_bottom(3)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        indent = Gtk.Box()
+        indent.set_size_request(min(depth, 4) * 12, 1)
+        box.pack_start(indent, False, False, 0)
+        icon = Gtk.Image.new_from_icon_name(
+            "folder-symbolic" if folder else "text-x-generic-symbolic",
+            Gtk.IconSize.MENU,
+        )
+        box.pack_start(icon, False, False, 0)
+        label = Gtk.Label(label=name, xalign=0)
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.set_single_line_mode(True)
+        box.pack_start(label, True, True, 0)
+        row.add(box)
+        return row
 
     def _section_label(self, text):
         label = Gtk.Label(label=text, xalign=0)
@@ -587,59 +599,67 @@ class DocumentSidebar(Gtk.Box):
             files: list[Path],
             truncated: bool,
             status: str):
-        self.folder_store.clear()
+        for c in self.folder_listbox.get_children():
+            self.folder_listbox.remove(c)
         self.markdown_folder_label.set_text(str(root) if root else "No folder selected")
         self.markdown_status_label.set_text(status)
         if root is None:
-            self.folder_store.append(
-                None,
-                ["No folder selected", "", "No folder selected"],
+            self.folder_listbox.add(
+                self._folder_tree_row("No folder selected", tooltip="No folder selected")
             )
+            self.folder_listbox.show_all()
             return
         if not files:
-            self.folder_store.append(
-                None,
-                ["No markdown files", "", "No markdown files"],
+            self.folder_listbox.add(
+                self._folder_tree_row("No markdown files", tooltip="No markdown files")
             )
+            self.folder_listbox.show_all()
             return
         root_resolved = root.resolve()
-        folder_nodes = {}
+        seen_folders = set()
         for f in files:
             try:
                 rel = f.resolve().relative_to(root_resolved)
                 parts = rel.parts
             except ValueError:
                 parts = (f.name,)
-            parent = None
             for depth, folder in enumerate(parts[:-1]):
                 key = parts[:depth + 1]
-                if key not in folder_nodes:
-                    tooltip = str(root_resolved.joinpath(*key))
-                    folder_nodes[key] = self.folder_store.append(
-                        parent,
-                        [folder, "", tooltip],
+                if key not in seen_folders:
+                    seen_folders.add(key)
+                    self.folder_listbox.add(
+                        self._folder_tree_row(
+                            folder,
+                            depth=depth,
+                            tooltip=str(root_resolved.joinpath(*key)),
+                            folder=True,
+                        )
                     )
-                parent = folder_nodes[key]
-            self.folder_store.append(parent, [parts[-1], str(f), str(f)])
-        if truncated:
-            self.folder_store.append(
-                None,
-                [
-                    "Scan limit reached; showing partial results.",
-                    "",
-                    "Scan limit reached; showing partial results.",
-                ],
+            self.folder_listbox.add(
+                self._folder_tree_row(
+                    parts[-1],
+                    depth=max(0, len(parts) - 1),
+                    file_path=f,
+                    tooltip=str(f),
+                    folder=False,
+                )
             )
-        self.folder_tree.expand_all()
+        if truncated:
+            self.folder_listbox.add(
+                self._folder_tree_row(
+                    "Scan limit reached; showing partial results.",
+                    tooltip="Scan limit reached; showing partial results.",
+                )
+            )
+        self.folder_listbox.show_all()
 
     def _on_history_row(self, _lb, row):
         path = getattr(row, "file_path", None)
         if path is not None:
             self.on_open_history(path)
 
-    def _on_folder_tree_row(self, tree, path, _column):
-        iter_ = self.folder_store.get_iter(path)
-        file_path = self.folder_store.get_value(iter_, 1)
+    def _on_folder_tree_row(self, _lb, row):
+        file_path = getattr(row, "file_path", None)
         if file_path:
             self.on_open_markdown(Path(file_path))
 
@@ -1068,7 +1088,7 @@ class Viewer(Gtk.ApplicationWindow):
     def _restore_sidebar_paned_position(self):
         if hasattr(self, "middle_paned"):
             width = getattr(self, "_sidebar_width", 300)
-            self.middle_paned.set_position(max(220, width))
+            self.middle_paned.set_position(max(160, width))
         return False
 
     def _on_sidebar_paned_position_changed(self, paned, _pspec):
@@ -1260,7 +1280,7 @@ class Viewer(Gtk.ApplicationWindow):
             "notify::position",
             self._on_sidebar_paned_position_changed,
         )
-        self.middle_paned.pack1(self.outline_revealer, resize=False, shrink=False)
+        self.middle_paned.pack1(self.outline_revealer, resize=False, shrink=True)
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.middle_paned.pack2(self.content_box, resize=True, shrink=False)
         self.middle_paned.set_position(0)
