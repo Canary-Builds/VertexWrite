@@ -6,6 +6,12 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-05-01
+
+### Security
+- Replaced personal maintainer, copyright, and helper-script metadata with organization-level metadata.
+- Superseded privacy-cleanup release artifacts with sanitized package metadata.
+
 ## [0.7.1] — 2026-05-01
 
 ### Security

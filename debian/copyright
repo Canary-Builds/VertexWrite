@@ -1,10 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: vertexwrite
-Upstream-Contact: Soho <262048121+cnysoho@users.noreply.github.com>
+Upstream-Contact: Canary Builds <contact@canarybuilds.com>
 Source: https://github.com/Canary-Builds/vertexwrite
 
 Files: *
-Copyright: 2026 Mark
+Copyright: 2026 Canary Builds
 License: Expat
 
 License: Expat

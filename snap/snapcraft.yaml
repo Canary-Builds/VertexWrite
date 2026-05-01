@@ -1,6 +1,6 @@
 name: vertexwrite
 base: core24
-version: "0.7.1"
+version: "0.7.2"
 title: VertexWrite
 summary: Markdown editor with local and SSH/SFTP file browsing
 description: |
@@ -16,7 +16,6 @@ source-code:
 issues:
   - https://github.com/Canary-Builds/vertexwrite/issues
 contact:
-  - mark@canarybuilds.com
   - https://canarybuilds.com/
 
 grade: stable

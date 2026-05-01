@@ -56,8 +56,8 @@ for path in work.glob("*.md"):
 PY
 
 cd "${WORK}"
-git config user.name 'Soho'
-git config user.email '262048121+cnysoho@users.noreply.github.com'
+git config user.name 'Canary Builds'
+git config user.email 'contact@canarybuilds.com'
 
 if git diff --quiet && git diff --cached --quiet; then
   echo "wiki already up to date."

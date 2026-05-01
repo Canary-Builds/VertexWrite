@@ -1,7 +1,7 @@
 Source: vertexwrite
 Section: editors
 Priority: optional
-Maintainer: Soho <262048121+cnysoho@users.noreply.github.com>
+Maintainer: Canary Builds <contact@canarybuilds.com>
 Build-Depends:
  appstream,
  debhelper-compat (= 13),

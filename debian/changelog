@@ -1,9 +1,18 @@
+vertexwrite (0.7.2+noble1) noble; urgency=medium
+
+  * Replace personal maintainer, copyright, and helper-script metadata with
+    organization-level metadata.
+  * Supersede privacy-cleanup release artifacts with sanitized package
+    metadata.
+
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 20:54:23 +0800
+
 vertexwrite (0.7.1+noble1) noble; urgency=medium
 
   * Sanitize SSH/SFTP examples and tests to remove machine-specific host
     aliases, local usernames, home paths, and real-looking network details.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 20:49:41 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 20:49:41 +0800
 
 vertexwrite (0.7.0+noble1) noble; urgency=medium
 
@@ -14,13 +23,13 @@ vertexwrite (0.7.0+noble1) noble; urgency=medium
   * Add Paramiko packaging dependencies for Debian, Snap, Flatpak, and
     Windows metadata.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 20:11:17 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 20:11:17 +0800
 
 vertexwrite (0.6.9+noble3) noble; urgency=medium
 
   * PPA upload for noble
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 11:42:43 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 11:42:43 +0800
 
 vertexwrite (0.6.9+noble1) noble; urgency=medium
 
@@ -30,7 +39,7 @@ vertexwrite (0.6.9+noble1) noble; urgency=medium
   * Remove the redundant Documents heading from the document sidebar.
   * Use clearer file and sidebar show/hide icons in the GTK UI.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.8+noble1) noble; urgency=medium
 
@@ -38,20 +47,20 @@ vertexwrite (0.6.8+noble1) noble; urgency=medium
   * Replace the GTK folder tree with a custom list layout so sidebar resizing
     truncates names on the right instead of clipping their left side.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.7+noble1) noble; urgency=medium
 
   * Separate the folder-tree gutter from the name column so sidebar resizing
     preserves visible file and folder names.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.6+noble1) noble; urgency=medium
 
   * Keep folder-tree names visible when resizing the sidebar.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.5+noble1) noble; urgency=medium
 
@@ -60,7 +69,7 @@ vertexwrite (0.6.5+noble1) noble; urgency=medium
   * Allow choosing a markdown file to display its containing folder tree.
   * Set the WebKitGTK DMABUF workaround before WebKit loads.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.4+noble1) noble; urgency=medium
 
@@ -68,14 +77,14 @@ vertexwrite (0.6.4+noble1) noble; urgency=medium
   * Replace the old outline sidebar with a document pane showing recents and
     the current folder tree.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.3+noble1) noble; urgency=medium
 
   * Update public documentation and release references for VertexWrite.
   * Keep legacy upgrade cleanup while removing stale public product-name references.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.6.2+noble1) noble; urgency=medium
 
@@ -83,60 +92,60 @@ vertexwrite (0.6.2+noble1) noble; urgency=medium
   * Update launchers, desktop metadata, icons, and installed paths to vertexwrite.
   * Preserve compatibility with existing legacy user config and state paths.
 
- -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Fri, 01 May 2026 00:00:00 +0800
 
 vertexwrite (0.5.2+noble6) noble; urgency=medium
 
   * Fix changelog lookup in packaged installs and GTK3 shortcuts dialog
   * PPA upload for noble
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 20:52:35 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 20:52:35 +0800
 
 vertexwrite (0.5.2+jammy3) jammy; urgency=medium
 
   * PPA upload for jammy
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 19:10:41 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 19:10:41 +0800
 
 vertexwrite (0.5.2+noble5) noble; urgency=medium
 
   * PPA upload for noble
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 19:09:45 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 19:09:45 +0800
 
 vertexwrite (0.5.2+jammy2) jammy; urgency=medium
 
   * PPA upload for jammy
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 18:59:06 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 18:59:06 +0800
 
 vertexwrite (0.5.2+jammy1) jammy; urgency=medium
 
   * PPA upload for jammy
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 18:54:57 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 18:54:57 +0800
 
 vertexwrite (0.5.2+noble4) noble; urgency=medium
 
   * PPA upload for noble
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 18:45:43 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 18:45:43 +0800
 
 vertexwrite (0.5.2+noble3) noble; urgency=medium
 
   * PPA upload for noble
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 17:58:40 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 17:58:40 +0800
 
 vertexwrite (0.5.2+noble2) noble; urgency=medium
 
   * PPA upload for noble
 
- -- Mark <mark@canarybuilds.com>  Mon, 13 Apr 2026 17:43:26 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 17:43:26 +0800
 
 vertexwrite (0.5.2+noble1) noble; urgency=medium
 
   * Initial Ubuntu packaging for PPA distribution.
   * Install launcher, desktop entry, icons, and runtime assets.
 
- -- Soho <262048121+cnysoho@users.noreply.github.com>  Mon, 13 Apr 2026 17:20:00 +0800
+ -- Canary Builds <contact@canarybuilds.com>  Mon, 13 Apr 2026 17:20:00 +0800
