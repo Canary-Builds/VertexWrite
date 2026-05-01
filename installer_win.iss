@@ -7,7 +7,7 @@
 ;   3. Click Build > Compile
 
 #define MyAppName "VertexWrite"
-#define MyAppVersion "0.7.0"
+#define MyAppVersion "0.7.1"
 #define MyAppPublisher "Canary Builds"
 #define MyAppURL "https://github.com/Canary-Builds/vertexwrite"
 #define MyAppExeName "vertexwrite.exe"

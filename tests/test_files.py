@@ -60,10 +60,10 @@ class _RemoteFile:
 
 class _FakeSftp:
     def __init__(self):
-        self.files = {"/home/marek/readme.md": b"# Old\n"}
+        self.files = {"/home/alice/readme.md": b"# Old\n"}
         self.modes = {
-            "/home/marek": stat.S_IFDIR | 0o755,
-            "/home/marek/readme.md": stat.S_IFREG | 0o644,
+            "/home/alice": stat.S_IFDIR | 0o755,
+            "/home/alice/readme.md": stat.S_IFREG | 0o644,
         }
         self.closed = False
 
@@ -112,7 +112,7 @@ class _FakeSftp:
 
     def normalize(self, path: str):
         if path == ".":
-            return "/home/marek"
+            return "/home/alice"
         return path
 
     def close(self):
@@ -182,27 +182,27 @@ def test_plain_path_preserves_leading_and_trailing_spaces(tmp_path: Path):
 
 
 def test_sftp_uri_parses_without_activating_backend():
-    uri = FileUri.parse("sftp://marek@example.com:2222/home/marek/My%20Doc.md")
+    uri = FileUri.parse("sftp://alice@example.com:2222/home/alice/My%20Doc.md")
 
     assert uri.scheme == "sftp"
-    assert uri.authority == "marek@example.com:2222"
-    assert uri.path == "/home/marek/My Doc.md"
+    assert uri.authority == "alice@example.com:2222"
+    assert uri.path == "/home/alice/My Doc.md"
     assert uri.name == "My Doc.md"
-    assert str(uri) == "sftp://marek@example.com:2222/home/marek/My%20Doc.md"
+    assert str(uri) == "sftp://alice@example.com:2222/home/alice/My%20Doc.md"
 
 
 def test_sftp_uri_rejects_password_userinfo():
     with pytest.raises(ValueError, match="password"):
-        FileUri.parse("sftp://marek:secret@example.com/home/marek/doc.md")
+        FileUri.parse("sftp://alice:secret@example.com/home/alice/doc.md")
 
     with pytest.raises(ValueError, match="password"):
-        FileUri.parse("sftp://marek%3Asecret@example.com/home/marek/doc.md")
+        FileUri.parse("sftp://alice%3Asecret@example.com/home/alice/doc.md")
 
     with pytest.raises(ValueError, match="host"):
-        FileUri.parse("sftp://marek@/home/marek/doc.md")
+        FileUri.parse("sftp://alice@/home/alice/doc.md")
 
     with pytest.raises(ValueError, match="authority"):
-        FileUri.parse("sftp://marek@example.com:notaport/home/marek/doc.md")
+        FileUri.parse("sftp://alice@example.com:notaport/home/alice/doc.md")
 
 
 def test_local_backend_stat_list_and_atomic_write(tmp_path: Path):
@@ -227,40 +227,40 @@ def test_default_registry_handles_local_only(tmp_path: Path):
     note = tmp_path / "note.md"
 
     assert backend_for(note).schemes == ("file", "local")
-    assert backend_for("sftp://example.com/home/marek/note.md").schemes == ("sftp",)
+    assert backend_for("sftp://example.com/home/alice/note.md").schemes == ("sftp",)
 
 
 def test_registry_reports_unsupported_remote_backend():
     registry = BackendRegistry([LocalBackend()])
 
     with pytest.raises(UnsupportedBackendError):
-        registry.backend_for("sftp://example.com/home/marek/note.md")
+        registry.backend_for("sftp://example.com/home/alice/note.md")
 
 
 def test_sftp_backend_parses_connection_info():
     backend = SftpBackend()
 
     info = backend.connection_info(
-        "sftp://marek@example.com:2222/home/marek/readme.md"
+        "sftp://alice@example.com:2222/home/alice/readme.md"
     )
 
     assert info.host == "example.com"
     assert info.port == 2222
-    assert info.username == "marek"
-    assert info.path == "/home/marek/readme.md"
-    assert info.label == "marek@example.com:2222"
+    assert info.username == "alice"
+    assert info.path == "/home/alice/readme.md"
+    assert info.label == "alice@example.com:2222"
 
 
 def test_parse_remote_target_accepts_ssh_alias_shorthand():
-    assert str(parse_remote_target("ssh catherine")) == "sftp://catherine/."
-    assert str(parse_remote_target("catherine")) == "sftp://catherine/."
+    assert str(parse_remote_target("ssh example-host")) == "sftp://example-host/."
+    assert str(parse_remote_target("example-host")) == "sftp://example-host/."
     assert (
-        str(parse_remote_target("ssh -p 2200 -l marek catherine ~/docs"))
-        == "sftp://marek@catherine:2200/~/docs"
+        str(parse_remote_target("ssh -p 2200 -l alice example-host ~/docs"))
+        == "sftp://alice@example-host:2200/~/docs"
     )
     assert (
-        str(parse_remote_target("catherine:/srv/docs"))
-        == "sftp://catherine/srv/docs"
+        str(parse_remote_target("example-host:/srv/docs"))
+        == "sftp://example-host/srv/docs"
     )
 
 
@@ -274,7 +274,7 @@ def test_sftp_backend_uses_strict_agent_key_connection_and_atomic_rename():
         return client
 
     backend = SftpBackend(client_factory=client_factory, connect_timeout=3)
-    uri = FileUri.parse("sftp://marek@example.com:2222/home/marek/readme.md")
+    uri = FileUri.parse("sftp://alice@example.com:2222/home/alice/readme.md")
 
     assert backend.read_bytes(uri) == b"# Old\n"
     listing = backend.list_dir(uri.parent)
@@ -283,12 +283,12 @@ def test_sftp_backend_uses_strict_agent_key_connection_and_atomic_rename():
     info = backend.write_bytes_atomic(uri, b"# New\n")
 
     assert info.is_file
-    assert sftp.files["/home/marek/readme.md"] == b"# New\n"
+    assert sftp.files["/home/alice/readme.md"] == b"# New\n"
     assert clients[-1].loaded_system_keys
     assert clients[-1].connect_kwargs == {
         "hostname": "example.com",
         "port": 2222,
-        "username": "marek",
+        "username": "alice",
         "allow_agent": True,
         "look_for_keys": True,
         "timeout": 3,
@@ -308,9 +308,9 @@ def test_sftp_backend_normalizes_home_shorthand():
 
     backend = SftpBackend(client_factory=client_factory, connect_timeout=3)
 
-    uri = backend.normalize_uri(parse_remote_target("ssh catherine"))
+    uri = backend.normalize_uri(parse_remote_target("ssh example-host"))
 
-    assert str(uri) == "sftp://catherine/home/marek"
+    assert str(uri) == "sftp://example-host/home/alice"
 
 
 def test_sftp_backend_uses_ssh_config_alias_for_host_key_name(tmp_path: Path):
@@ -319,26 +319,26 @@ def test_sftp_backend_uses_ssh_config_alias_for_host_key_name(tmp_path: Path):
     ssh_config.write_text(
         "\n".join(
             [
-                "Host catherine",
-                "    HostName 46.250.242.158",
-                "    User marek",
-                "    Port 64655",
+                "Host example-host",
+                "    HostName 192.0.2.10",
+                "    User alice",
+                "    Port 2222",
                 f"    IdentityFile {key_path}",
             ]
         ),
         encoding="utf-8",
     )
     backend = _AliasBackend(ssh_config=ssh_config, connect_timeout=3)
-    info = backend.connection_info(parse_remote_target("ssh catherine"))
+    info = backend.connection_info(parse_remote_target("ssh example-host"))
 
     kwargs = backend._connect_kwargs(info)
 
-    assert kwargs["hostname"] == "catherine"
-    assert kwargs["port"] == 64655
-    assert kwargs["username"] == "marek"
+    assert kwargs["hostname"] == "example-host"
+    assert kwargs["port"] == 2222
+    assert kwargs["username"] == "alice"
     assert kwargs["key_filename"] == [str(key_path)]
     assert kwargs["sock"] == "direct-socket"
-    assert backend.sock_target == ("46.250.242.158", 64655)
+    assert backend.sock_target == ("192.0.2.10", 2222)
 
 
 def test_known_hosts_alias_policy_checks_system_host_keys():
@@ -349,11 +349,11 @@ def test_known_hosts_alias_policy_checks_system_host_keys():
 
     client = Client()
     key = paramiko.RSAKey.generate(1024)
-    client._system_host_keys.add("46.250.242.158", key.get_name(), key)
-    policy = _KnownHostsAliasPolicy(["46.250.242.158"])
+    client._system_host_keys.add("192.0.2.10", key.get_name(), key)
+    policy = _KnownHostsAliasPolicy(["192.0.2.10"])
 
-    policy.missing_host_key(client, "[catherine]:64655", key)
+    policy.missing_host_key(client, "[example-host]:2222", key)
 
-    known = client._host_keys.lookup("[catherine]:64655")
+    known = client._host_keys.lookup("[example-host]:2222")
     assert known is not None
     assert known[key.get_name()] == key

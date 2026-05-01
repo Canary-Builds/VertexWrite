@@ -1,3 +1,10 @@
+vertexwrite (0.7.1+noble1) noble; urgency=medium
+
+  * Sanitize SSH/SFTP examples and tests to remove machine-specific host
+    aliases, local usernames, home paths, and real-looking network details.
+
+ -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 20:49:41 +0800
+
 vertexwrite (0.7.0+noble1) noble; urgency=medium
 
   * Add backend-neutral file URI and SFTP storage support.

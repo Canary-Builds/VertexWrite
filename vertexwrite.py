@@ -59,7 +59,7 @@ from vertexwrite_core import (  # noqa: E402
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 APP_ID = "com.canarybuilds.VertexWrite"
 APP_NAME = "VertexWrite"
@@ -1782,7 +1782,7 @@ class Viewer(Gtk.ApplicationWindow):
         label = Gtk.Label(
             label=(
                 "Quick connect: enter an SSH host alias or SFTP URI. Examples: "
-                "ssh catherine, ssh catherine ~/docs, sftp://user@host:22/path. "
+                "ssh example-host, ssh example-host ~/docs, sftp://user@host:22/path. "
                 "Authentication uses SSH agent/keys and known_hosts."
             ),
             xalign=0,
@@ -1791,7 +1791,7 @@ class Viewer(Gtk.ApplicationWindow):
         box.pack_start(label, False, False, 0)
 
         entry = Gtk.Entry()
-        entry.set_placeholder_text("ssh catherine")
+        entry.set_placeholder_text("ssh example-host")
         entry.set_activates_default(True)
         if self.markdown_root_uri and self.markdown_root_uri.is_remote:
             entry.set_text(str(self.markdown_root_uri))
@@ -1815,7 +1815,7 @@ class Viewer(Gtk.ApplicationWindow):
         grid = Gtk.Grid(row_spacing=8, column_spacing=10)
         grid.set_column_homogeneous(False)
         host_entry = Gtk.Entry()
-        host_entry.set_placeholder_text("catherine or 192.0.2.10")
+        host_entry.set_placeholder_text("example-host or 192.0.2.10")
         user_entry = Gtk.Entry()
         user_entry.set_placeholder_text("optional username")
         port_entry = Gtk.Entry()

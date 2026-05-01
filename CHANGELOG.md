@@ -6,13 +6,19 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-05-01
+
+### Security
+- Sanitized SSH/SFTP examples and tests to remove machine-specific host aliases, local usernames, home paths, and real-looking network details.
+- Removed generated nested build-cache Git metadata from the workspace before publishing replacement release artifacts.
+
 ## [0.7.0] — 2026-05-01
 
 ### Added
 - Added a backend-neutral storage foundation with `FileUri`, `FileInfo`, `LocalBackend`, and backend registry primitives.
 - Added the first `SftpBackend` implementation using Paramiko, strict known-hosts checking, SSH agent/key auth, remote listing/reading, and temp-file plus `posix_rename` atomic writes.
 - Added a Linux sidebar SSH/SFTP connection control with status dot, remote folder browsing, remote document open, and remote save support.
-- Added SSH target shorthand in the remote dialog, including `ssh catherine`, bare `catherine`, `ssh -p 2200 -l user host ~/docs`, and `host:/path`.
+- Added SSH target shorthand in the remote dialog, including `ssh example-host`, bare `example-host`, `ssh -p 2200 -l user host ~/docs`, and `host:/path`.
 - Added manual Host/IP, User, Port, and Path fields to the SSH/SFTP connection dialog for users who prefer structured connection details.
 - Folder-tree file and folder buttons now stay remote-aware: when the active tree is SFTP, they browse the remote server instead of opening a local file chooser.
 - Added a remote file browser for SFTP folder-tree selection, with folder/file listing, Home, Up, Refresh, direct path entry, and double-click folder navigation.
