@@ -10,9 +10,20 @@ import argparse
 import subprocess
 import datetime
 import gzip
+import posixpath
+import threading
 import urllib.request
 import urllib.error
+from dataclasses import dataclass
 from pathlib import Path
+
+from vertexwrite_files import (
+    FileInfo,
+    FileUri,
+    StorageError,
+    backend_for,
+    parse_remote_target,
+)
 
 # WebKitGTK can abort during startup on some NVIDIA/Wayland GBM stacks unless
 # the DMABUF renderer is disabled before WebKit is loaded.
@@ -48,7 +59,7 @@ from vertexwrite_core import (  # noqa: E402
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.9"
+__version__ = "0.7.0"
 
 APP_ID = "com.canarybuilds.VertexWrite"
 APP_NAME = "VertexWrite"
@@ -92,20 +103,10 @@ SNAPSHOT_KEEP = 30
 RECENTS_PATH = STATE_DIR / "recent.json"
 RECENT_MAX = 50
 MARKDOWN_ROOT_PATH = STATE_DIR / "markdown-root.txt"
-MARKDOWN_SCAN_MAX = 10000
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 SIDEBAR_MIN_WIDTH = 180
 SIDEBAR_INDENT_STEP = 8
 SIDEBAR_INDENT_MAX = 32
-MARKDOWN_SKIP_DIRS = {
-    ".git",
-    "node_modules",
-    ".venv",
-    "venv",
-    "__pycache__",
-    ".flatpak-builder",
-    ".craft",
-}
 
 preprocess_tasks = _preprocess_tasks
 preprocess_transclusions = _preprocess_transclusions
@@ -141,7 +142,58 @@ def list_snapshots(path: Path) -> list[Path]:
     return _list_snapshots(path, snapshot_dir=SNAPSHOT_DIR)
 
 
-def load_recents() -> list[Path]:
+@dataclass(frozen=True)
+class RecentDocument:
+    uri: FileUri
+
+    @property
+    def title(self) -> str:
+        return self.uri.name
+
+    @property
+    def subtitle(self) -> str:
+        return self.uri.display()
+
+    @property
+    def local_path(self) -> Path | None:
+        if not self.uri.is_local:
+            return None
+        return self.uri.to_path()
+
+    @property
+    def key(self) -> str:
+        return str(self.uri)
+
+
+def _recent_from_local_path(path: Path) -> RecentDocument | None:
+    try:
+        return RecentDocument(uri=FileUri.from_path(path))
+    except (OSError, ValueError):
+        return None
+
+
+def _recent_from_uri(uri: str) -> RecentDocument | None:
+    try:
+        return RecentDocument(uri=FileUri.parse(uri))
+    except ValueError:
+        return None
+
+
+def _coerce_recent(item) -> RecentDocument | None:
+    if isinstance(item, RecentDocument):
+        return item
+    if isinstance(item, Path):
+        return _recent_from_local_path(item)
+    if isinstance(item, str) and item.strip():
+        return _recent_from_uri(item.strip())
+    if isinstance(item, dict):
+        uri = item.get("uri")
+        if isinstance(uri, str):
+            return _recent_from_uri(uri)
+    return None
+
+
+def load_recents() -> list[RecentDocument]:
     try:
         raw = json.loads(RECENTS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -150,20 +202,23 @@ def load_recents() -> list[Path]:
         return []
     out = []
     for item in raw:
-        if isinstance(item, str) and item.strip():
-            out.append(Path(item))
+        recent = _coerce_recent(item)
+        if recent is not None:
+            out.append(recent)
     return out
 
 
-def save_recents(paths: list[Path]):
-    unique: list[str] = []
+def save_recents(items: list[RecentDocument | Path]):
+    unique: list[dict[str, str]] = []
     seen: set[str] = set()
-    for p in paths:
-        s = str(p.resolve())
-        if s in seen:
+    for item in items:
+        recent = _coerce_recent(item)
+        if recent is None:
             continue
-        seen.add(s)
-        unique.append(s)
+        if recent.key in seen:
+            continue
+        seen.add(recent.key)
+        unique.append({"uri": recent.key})
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         RECENTS_PATH.write_text(
@@ -174,48 +229,78 @@ def save_recents(paths: list[Path]):
         pass
 
 
-def add_recent(path: Path):
-    path = path.resolve()
+def add_recent_uri(uri: FileUri):
+    recent = RecentDocument(uri=uri)
     recents = load_recents()
-    recents = [p for p in recents if p != path]
-    recents.insert(0, path)
+    recents = [item for item in recents if item.key != recent.key]
+    recents.insert(0, recent)
     save_recents(recents)
 
 
-def load_markdown_root() -> Path | None:
+def add_recent(path: Path):
+    recent = _recent_from_local_path(path)
+    if recent is not None:
+        add_recent_uri(recent.uri)
+
+
+def load_markdown_root_uri() -> FileUri | None:
     try:
         value = MARKDOWN_ROOT_PATH.read_text(encoding="utf-8").strip()
     except OSError:
         return None
     if not value:
         return None
-    p = Path(value)
-    return p if p.is_dir() else None
+    try:
+        uri = FileUri.parse(value)
+    except ValueError:
+        return None
+    if uri.is_remote:
+        return uri
+    path = uri.to_path()
+    return uri if path.is_dir() else None
 
 
-def save_markdown_root(path: Path | None):
+def load_markdown_root() -> Path | None:
+    uri = load_markdown_root_uri()
+    if uri is None or not uri.is_local:
+        return None
+    return uri.to_path()
+
+
+def save_markdown_root_uri(root: FileUri | Path | None):
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
-        if path is None:
+        if root is None:
             if MARKDOWN_ROOT_PATH.exists():
                 MARKDOWN_ROOT_PATH.unlink()
             return
-        MARKDOWN_ROOT_PATH.write_text(str(path.resolve()), encoding="utf-8")
+        if isinstance(root, FileUri):
+            value = str(root) if root.is_remote else str(root.to_path().resolve())
+        else:
+            value = str(root.resolve())
+        MARKDOWN_ROOT_PATH.write_text(value, encoding="utf-8")
     except OSError:
         pass
 
 
+def save_markdown_root(path: Path | None):
+    save_markdown_root_uri(path)
+
+
 def welcome_html(theme: str) -> str:
     md_text = (
-        f"# VertexWrite\n\n*v{__version__} — minimal, modern markdown viewer + editor.*\n\n"
+        f"# VertexWrite\n\n*v{__version__} — markdown editing with local and SSH/SFTP file browsing.*\n\n"
         '<div class="vw-actions">\n'
         '<button type="button" class="vw-action" data-vw-action="new">New document</button>\n'
         '<button type="button" class="vw-action secondary" data-vw-action="open">Open file</button>\n'
         '<button type="button" class="vw-action secondary" data-vw-action="sidebar">Show sidebar</button>\n'
+        '<button type="button" class="vw-action secondary" data-vw-action="remote">Connect SSH/SFTP</button>\n'
         "</div>\n\n"
         "- **New document** — `Ctrl+N` or the header button\n"
         "- **Open** — `Ctrl+O`, drag & drop, or CLI path\n"
-        "- **Sidebar** — `Ctrl+Shift+O` shows recent documents and the current folder tree\n"
+        "- **Sidebar** — `Ctrl+Shift+O` shows recent documents and a file-browser folder tree\n"
+        "- **SSH/SFTP** — use the sidebar's bottom SSH control or **Connect SSH/SFTP** to browse remote servers\n"
+        "- **Folder tree** — browse folders and files, navigate into folders, refresh, and toggle hidden dotfiles\n"
         "- **Edit mode** — `Ctrl+E` (reveals the edit toolbar)\n"
         "- **Palette** — `Ctrl+P` · **Folder search** — `Ctrl+Shift+F`\n"
         "- **Typewriter mode** — `Ctrl+Shift+T`\n"
@@ -422,6 +507,401 @@ class CommandPalette(Gtk.Window):
         return False
 
 
+# --- remote file browser -----------------------------------------------------
+
+class RemoteFileBrowserDialog(Gtk.Dialog):
+    def __init__(self, parent, root_uri: FileUri, select_mode: str):
+        super().__init__(title="Browse Remote Server", parent=parent, flags=0)
+        if select_mode not in {"folder", "file"}:
+            raise ValueError("select_mode must be 'folder' or 'file'")
+        self.select_mode = select_mode
+        self.current_uri = root_uri
+        self._result_uri: FileUri | None = None
+        self._raw_entries: list[FileInfo] = []
+        self._load_generation = 0
+        self._loading = False
+        self._show_hidden = False
+
+        self.set_default_size(760, 540)
+        self.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        self.select_button = Gtk.Button(
+            label="Use Current Folder"
+            if select_mode == "folder"
+            else "Choose File"
+        )
+        self.select_button.get_style_context().add_class("suggested-action")
+        self.select_button.connect("clicked", self._accept_selection)
+        self.get_action_area().pack_end(self.select_button, False, False, 0)
+
+        box = self.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_top(10)
+        box.set_margin_bottom(10)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+
+        title = _shrink_label(
+            root_uri.authority,
+            ellipsize=Pango.EllipsizeMode.MIDDLE,
+        )
+        title.get_style_context().add_class("dim-label")
+        box.pack_start(title, False, False, 0)
+
+        toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.home_button = _icon_button(
+            "go-home-symbolic",
+            "Go to remote home",
+            self._go_home,
+        )
+        self.up_button = _icon_button(
+            "go-up-symbolic",
+            "Go to parent folder",
+            self._go_up,
+        )
+        self.refresh_button = _icon_button(
+            "view-refresh-symbolic",
+            "Reload remote folder",
+            self._refresh,
+        )
+        self.show_hidden_check = Gtk.CheckButton.new_with_label("Show hidden")
+        self.show_hidden_check.set_tooltip_text("Show dotfiles and dotfolders")
+        self.show_hidden_check.connect("toggled", self._on_show_hidden_toggled)
+        self.path_entry = Gtk.Entry()
+        self.path_entry.set_hexpand(True)
+        self.path_entry.set_placeholder_text("/home/user/docs or ~/docs")
+        self.path_entry.set_activates_default(True)
+        self.path_entry.connect("activate", self._go_to_entry)
+        self.go_button = Gtk.Button(label="Go")
+        self.go_button.connect("clicked", self._go_to_entry)
+        toolbar.pack_start(self.home_button, False, False, 0)
+        toolbar.pack_start(self.up_button, False, False, 0)
+        toolbar.pack_start(self.refresh_button, False, False, 0)
+        toolbar.pack_start(self.show_hidden_check, False, False, 0)
+        toolbar.pack_start(self.path_entry, True, True, 0)
+        toolbar.pack_start(self.go_button, False, False, 0)
+        box.pack_start(toolbar, False, False, 0)
+
+        self.status_label = _shrink_label("")
+        self.status_label.get_style_context().add_class("dim-label")
+        box.pack_start(self.status_label, False, False, 0)
+
+        self.listbox = Gtk.ListBox()
+        self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.listbox.set_activate_on_single_click(False)
+        self.listbox.connect("row-activated", self._on_row_activated)
+        self.listbox.connect("row-selected", self._on_row_selected)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_hexpand(True)
+        scroller.set_vexpand(True)
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.add(self.listbox)
+        box.pack_start(scroller, True, True, 0)
+
+        help_text = (
+            "Double-click folders to navigate. "
+            "Files are shown so you can confirm the remote location."
+        )
+        if select_mode == "file":
+            help_text = "Double-click folders to navigate, then choose a file."
+        help_label = Gtk.Label(label=help_text, xalign=0)
+        help_label.set_line_wrap(True)
+        help_label.get_style_context().add_class("dim-label")
+        box.pack_start(help_label, False, False, 0)
+
+        self.connect("key-press-event", self._on_key_press)
+        self._load_directory(root_uri)
+
+    @property
+    def result_uri(self) -> FileUri | None:
+        return self._result_uri
+
+    def _set_loading(self, loading: bool, status: str):
+        self._loading = loading
+        self.status_label.set_text(status)
+        self.listbox.set_sensitive(not loading)
+        self.home_button.set_sensitive(not loading)
+        self.up_button.set_sensitive(not loading and self.current_uri.path != "/")
+        self.refresh_button.set_sensitive(not loading)
+        self.show_hidden_check.set_sensitive(not loading)
+        self.path_entry.set_sensitive(not loading)
+        self.go_button.set_sensitive(not loading)
+        self.select_button.set_sensitive(not loading)
+
+    def _load_directory(self, uri: FileUri):
+        if not uri.is_remote:
+            self.status_label.set_text("Remote browser requires an SFTP URI.")
+            return
+        self._load_generation += 1
+        generation = self._load_generation
+        self.current_uri = uri
+        self.path_entry.set_text(uri.path)
+        self._clear_rows()
+        self._set_loading(True, f"Loading {uri.display()}...")
+
+        def worker():
+            backend = backend_for(uri)
+            normalize = getattr(backend, "normalize_uri", None)
+            current = normalize(uri) if normalize else uri
+            info = backend.stat(current)
+            if info.is_file:
+                current = current.parent
+            entries = backend.list_dir(current)
+            return current, entries
+
+        def done(result, error):
+            if generation != self._load_generation:
+                return False
+            if error is not None:
+                self._set_loading(False, f"Load failed: {error}")
+                self.select_button.set_sensitive(False)
+                self._show_message_row("Could not load remote folder", str(error))
+                return False
+            current, entries = result
+            self.current_uri = current
+            self.path_entry.set_text(current.path)
+            self._raw_entries = entries
+            self._render_entries(entries)
+            count = len(self._visible_entries(entries))
+            noun = "item" if count == 1 else "items"
+            self._set_loading(False, f"{count} {noun} in {current.display()}")
+            self._update_selection_action()
+            return False
+
+        threading.Thread(
+            target=self._run_worker,
+            args=(worker, done),
+            daemon=True,
+        ).start()
+
+    def _run_worker(self, worker, done):
+        try:
+            result = worker()
+            error = None
+        except Exception as exc:
+            result = None
+            error = exc
+        GLib.idle_add(done, result, error)
+
+    def _render_entries(self, entries: list[FileInfo]):
+        self._clear_rows()
+        if self.current_uri.path != "/":
+            self.listbox.add(
+                self._browser_row(
+                    "..",
+                    self.current_uri.parent,
+                    is_dir=True,
+                    subtitle="Parent folder",
+                )
+            )
+        visible_entries = self._visible_entries(entries)
+        if not visible_entries:
+            hidden_count = len(entries) - len(visible_entries)
+            message = (
+                "Only hidden files are in this folder"
+                if hidden_count
+                else "This remote folder is empty"
+            )
+            detail = (
+                "Turn on Show hidden to display dotfiles."
+                if hidden_count
+                else ""
+            )
+            self._show_message_row(message, detail)
+        for info in visible_entries:
+            subtitle = "Folder" if info.is_dir else self._file_subtitle(info)
+            self.listbox.add(
+                self._browser_row(
+                    info.name,
+                    info.uri,
+                    is_dir=info.is_dir,
+                    subtitle=subtitle,
+                )
+            )
+        self.listbox.show_all()
+
+    def _visible_entries(self, entries: list[FileInfo]) -> list[FileInfo]:
+        return [
+            info for info in entries
+            if info.name not in {".", ".."}
+            and (self._show_hidden or not info.name.startswith("."))
+        ]
+
+    def _browser_row(
+            self,
+            name: str,
+            uri: FileUri,
+            *,
+            is_dir: bool,
+            subtitle: str):
+        row = Gtk.ListBoxRow()
+        row.file_uri = uri
+        row.is_dir = is_dir
+        row.set_tooltip_text(uri.display())
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        hbox.set_margin_top(5)
+        hbox.set_margin_bottom(5)
+        hbox.set_margin_start(8)
+        hbox.set_margin_end(8)
+        icon = Gtk.Image.new_from_icon_name(
+            "folder-symbolic" if is_dir else "text-x-generic-symbolic",
+            Gtk.IconSize.MENU,
+        )
+        hbox.pack_start(icon, False, False, 0)
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        text.set_hexpand(True)
+        label = _shrink_label(name)
+        sub = _shrink_label(subtitle, ellipsize=Pango.EllipsizeMode.MIDDLE)
+        sub.get_style_context().add_class("dim-label")
+        text.pack_start(label, False, False, 0)
+        text.pack_start(sub, False, False, 0)
+        hbox.pack_start(text, True, True, 0)
+        row.add(hbox)
+        return row
+
+    def _show_message_row(self, message: str, detail: str):
+        row = Gtk.ListBoxRow()
+        row.file_uri = None
+        row.is_dir = False
+        row.set_selectable(False)
+        row.set_activatable(False)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        label = Gtk.Label(label=message, xalign=0)
+        box.pack_start(label, False, False, 0)
+        if detail:
+            sub = _shrink_label(detail, ellipsize=Pango.EllipsizeMode.MIDDLE)
+            sub.get_style_context().add_class("dim-label")
+            box.pack_start(sub, False, False, 0)
+        row.add(box)
+        self.listbox.add(row)
+        self.listbox.show_all()
+
+    def _clear_rows(self):
+        for child in self.listbox.get_children():
+            self.listbox.remove(child)
+
+    def _file_subtitle(self, info: FileInfo) -> str:
+        return f"File · {self._format_size(info.size)}"
+
+    def _format_size(self, size: int) -> str:
+        value = float(size)
+        for unit in ("B", "KB", "MB", "GB"):
+            if value < 1024 or unit == "GB":
+                if unit == "B":
+                    return f"{int(value)} {unit}"
+                return f"{value:.1f} {unit}"
+            value /= 1024
+        return f"{size} B"
+
+    def _selected_row_uri(self) -> tuple[FileUri | None, bool]:
+        row = self.listbox.get_selected_row()
+        if row is None:
+            return None, False
+        return getattr(row, "file_uri", None), bool(getattr(row, "is_dir", False))
+
+    def _on_row_selected(self, *_):
+        self._update_selection_action()
+
+    def _update_selection_action(self):
+        if self._loading:
+            return
+        uri, is_dir = self._selected_row_uri()
+        if self.select_mode == "folder":
+            self.select_button.set_sensitive(True)
+            self.select_button.set_label(
+                "Use Selected Folder" if uri and is_dir else "Use Current Folder"
+            )
+            return
+        self.select_button.set_sensitive(bool(uri and not is_dir))
+
+    def _on_row_activated(self, _lb, row):
+        uri = getattr(row, "file_uri", None)
+        if uri is None:
+            return
+        if getattr(row, "is_dir", False):
+            self._load_directory(uri)
+            return
+        if self.select_mode == "file":
+            self._result_uri = uri
+            self.response(Gtk.ResponseType.OK)
+
+    def _accept_selection(self, *_):
+        uri, is_dir = self._selected_row_uri()
+        if self.select_mode == "folder":
+            self._result_uri = uri if uri and is_dir else self.current_uri
+            self.response(Gtk.ResponseType.OK)
+            return
+        if uri is None or is_dir:
+            self.status_label.set_text("Choose a file first.")
+            return
+        self._result_uri = uri
+        self.response(Gtk.ResponseType.OK)
+
+    def _go_home(self, *_):
+        self._load_directory(FileUri("sftp", "/.", self.current_uri.authority))
+
+    def _go_up(self, *_):
+        if self.current_uri.path != "/":
+            self._load_directory(self.current_uri.parent)
+
+    def _refresh(self, *_):
+        self._load_directory(self.current_uri)
+
+    def _on_show_hidden_toggled(self, button):
+        self._show_hidden = button.get_active()
+        self._render_entries(self._raw_entries)
+        count = len(self._visible_entries(self._raw_entries))
+        noun = "item" if count == 1 else "items"
+        self.status_label.set_text(f"{count} {noun} in {self.current_uri.display()}")
+        self._update_selection_action()
+
+    def _go_to_entry(self, *_):
+        text = self.path_entry.get_text().strip()
+        if not text:
+            return
+        try:
+            uri = self._uri_from_path_entry(text)
+        except ValueError as exc:
+            self.status_label.set_text(f"Invalid path: {exc}")
+            return
+        self._load_directory(uri)
+
+    def _uri_from_path_entry(self, text: str) -> FileUri:
+        if text.startswith("sftp://") or text.startswith("ssh "):
+            return parse_remote_target(text)
+        if (
+                not text.startswith(("/", "~", "."))
+                and (":" in text or "@" in text or " " in text)):
+            return parse_remote_target(text)
+        if text in {".", ".."} or text.startswith(("./", "../")):
+            path = posixpath.normpath(posixpath.join(self.current_uri.path, text))
+            if not path.startswith("/"):
+                path = "/" + path
+            return FileUri("sftp", path, self.current_uri.authority)
+        if not text.startswith(("/", "~")):
+            return FileUri(
+                "sftp",
+                posixpath.join(self.current_uri.path, text),
+                self.current_uri.authority,
+            )
+        return parse_remote_target(
+            f"{self.current_uri.authority} {shlex.quote(text)}"
+        )
+
+    def _on_key_press(self, _widget, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self.response(Gtk.ResponseType.CANCEL)
+            return True
+        if event.keyval in (Gdk.KEY_BackSpace, Gdk.KEY_Left) and (
+                event.state & Gdk.ModifierType.MOD1_MASK):
+            self._go_up()
+            return True
+        return False
+
+
 # --- document sidebar --------------------------------------------------------
 
 class DocumentSidebar(Gtk.Box):
@@ -430,18 +910,28 @@ class DocumentSidebar(Gtk.Box):
             on_jump,
             on_open_history,
             on_open_markdown,
+            on_open_folder,
             on_choose_markdown_file,
             on_choose_markdown_folder,
-            on_rescan_markdown_folder):
+            on_rescan_markdown_folder,
+            on_toggle_hidden_files,
+            on_remote_connect):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_size_request(SIDEBAR_MIN_WIDTH, -1)
         self.set_hexpand(True)
         self.on_jump = on_jump
         self.on_open_history = on_open_history
         self.on_open_markdown = on_open_markdown
+        self.on_open_folder = on_open_folder
         self.on_choose_markdown_file = on_choose_markdown_file
         self.on_choose_markdown_folder = on_choose_markdown_folder
         self.on_rescan_markdown_folder = on_rescan_markdown_folder
+        self.on_toggle_hidden_files = on_toggle_hidden_files
+        self.on_remote_connect = on_remote_connect
+        self.show_hidden_files = False
+        self._remote_state = "idle"
+        self._remote_pulse_timer: int | None = None
+        self._remote_pulse_on = False
 
         self.split_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
         self.split_paned.set_wide_handle(True)
@@ -471,12 +961,12 @@ class DocumentSidebar(Gtk.Box):
         folder_label = _shrink_label("Folder tree")
         folder_label.get_style_context().add_class("dim-label")
         folder_header.pack_start(folder_label, True, True, 0)
-        choose_file_btn = _icon_button(
+        self.choose_file_btn = _icon_button(
             "text-x-generic-symbolic",
             "Choose a markdown file and show its folder",
             self.on_choose_markdown_file,
         )
-        choose_btn = _icon_button(
+        self.choose_folder_btn = _icon_button(
             "folder-open-symbolic",
             "Choose markdown folder",
             self.on_choose_markdown_folder,
@@ -486,9 +976,15 @@ class DocumentSidebar(Gtk.Box):
             "Rescan selected folder",
             self.on_rescan_markdown_folder,
         )
-        folder_header.pack_start(choose_file_btn, False, False, 0)
-        folder_header.pack_start(choose_btn, False, False, 0)
+        self.show_hidden_btn = Gtk.ToggleButton.new_with_label(".*")
+        self.show_hidden_btn.set_relief(Gtk.ReliefStyle.NONE)
+        self.show_hidden_btn.set_tooltip_text("Show hidden dotfiles")
+        self.show_hidden_btn.get_style_context().add_class("flat")
+        self.show_hidden_btn.connect("toggled", self._on_show_hidden_toggled)
+        folder_header.pack_start(self.choose_file_btn, False, False, 0)
+        folder_header.pack_start(self.choose_folder_btn, False, False, 0)
         folder_header.pack_start(rescan_btn, False, False, 0)
+        folder_header.pack_start(self.show_hidden_btn, False, False, 0)
 
         self.markdown_folder_label = _shrink_label(
             "No folder selected",
@@ -529,8 +1025,33 @@ class DocumentSidebar(Gtk.Box):
         self.split_paned.set_position(220)
         self.pack_start(self.split_paned, True, True, 0)
 
+        self.remote_button = Gtk.Button()
+        self.remote_button.set_relief(Gtk.ReliefStyle.NONE)
+        self.remote_button.connect("clicked", self.on_remote_connect)
+        remote_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        remote_box.set_margin_top(6)
+        remote_box.set_margin_bottom(6)
+        remote_box.set_margin_start(8)
+        remote_box.set_margin_end(8)
+        self.remote_dot = Gtk.Label()
+        self.remote_label = _shrink_label("SSH")
+        self.remote_detail = _shrink_label(
+            "Connect",
+            ellipsize=Pango.EllipsizeMode.MIDDLE,
+        )
+        self.remote_detail.get_style_context().add_class("dim-label")
+        remote_text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        remote_text.set_hexpand(True)
+        remote_text.pack_start(self.remote_label, False, False, 0)
+        remote_text.pack_start(self.remote_detail, False, False, 0)
+        remote_box.pack_start(self.remote_dot, False, False, 0)
+        remote_box.pack_start(remote_text, True, True, 0)
+        self.remote_button.add(remote_box)
+        self.pack_start(self.remote_button, False, False, 0)
+
         self.update_history([])
-        self.set_markdown_results(None, [], False, "Choose a folder to scan markdown files.")
+        self.set_file_browser_results(None, [], "Choose a folder to browse.")
+        self.set_remote_status("idle", "SSH", "Connect")
 
     def _folder_tree_row(
             self,
@@ -538,10 +1059,13 @@ class DocumentSidebar(Gtk.Box):
             *,
             depth: int = 0,
             file_path: Path | None = None,
+            file_uri: FileUri | None = None,
             tooltip: str | None = None,
             folder: bool = False):
         row = Gtk.ListBoxRow()
         row.file_path = file_path
+        row.file_uri = file_uri
+        row.is_dir = folder
         row.set_tooltip_text(tooltip or name)
         row.set_hexpand(True)
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -580,12 +1104,48 @@ class DocumentSidebar(Gtk.Box):
         # Kept for existing call sites; heading jumps remain in the palette.
         return
 
-    def update_history(self, paths: list[Path]):
+    def set_remote_status(self, state: str, label: str, detail: str = ""):
+        self._remote_state = state
+        colors = {
+            "idle": "#8b949e",
+            "connecting": "#2f81f7",
+            "connected": "#2da44e",
+            "failed": "#cf222e",
+        }
+        color = colors.get(state, colors["idle"])
+        self.remote_dot.set_markup(f'<span foreground="{color}">●</span>')
+        self.remote_label.set_text(label)
+        self.remote_detail.set_text(detail)
+        self.remote_button.set_tooltip_text(
+            f"{label} {detail}".strip() or "Connect SSH/SFTP"
+        )
+        if state == "connecting":
+            self._start_remote_pulse()
+        elif self._remote_pulse_timer is not None:
+            GLib.source_remove(self._remote_pulse_timer)
+            self._remote_pulse_timer = None
+
+    def _start_remote_pulse(self):
+        if self._remote_pulse_timer is not None:
+            return
+        self._remote_pulse_timer = GLib.timeout_add(650, self._pulse_remote_dot)
+
+    def _pulse_remote_dot(self):
+        if self._remote_state != "connecting":
+            self._remote_pulse_timer = None
+            return False
+        self._remote_pulse_on = not self._remote_pulse_on
+        dot = "●" if self._remote_pulse_on else "◌"
+        self.remote_dot.set_markup(f'<span foreground="#2f81f7">{dot}</span>')
+        return True
+
+    def update_history(self, recents: list[RecentDocument]):
         for c in self.history_listbox.get_children():
             self.history_listbox.remove(c)
-        if not paths:
+        if not recents:
             row = Gtk.ListBoxRow()
             row.file_path = None
+            row.recent = None
             lbl = _shrink_label("No recent files yet")
             lbl.set_margin_top(8)
             lbl.set_margin_bottom(8)
@@ -596,9 +1156,10 @@ class DocumentSidebar(Gtk.Box):
             self.history_listbox.add(row)
             self.history_listbox.show_all()
             return
-        for p in paths:
+        for recent in recents:
             row = Gtk.ListBoxRow()
-            row.file_path = p
+            row.recent = recent
+            row.file_path = recent.local_path
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             box.set_hexpand(True)
             box.set_halign(Gtk.Align.FILL)
@@ -606,8 +1167,11 @@ class DocumentSidebar(Gtk.Box):
             box.set_margin_bottom(6)
             box.set_margin_start(8)
             box.set_margin_end(8)
-            name = _shrink_label(p.name)
-            sub = _shrink_label(str(p), ellipsize=Pango.EllipsizeMode.MIDDLE)
+            name = _shrink_label(recent.title)
+            sub = _shrink_label(
+                recent.subtitle,
+                ellipsize=Pango.EllipsizeMode.MIDDLE,
+            )
             sub.get_style_context().add_class("dim-label")
             box.pack_start(name, False, False, 0)
             box.pack_start(sub, False, False, 0)
@@ -615,72 +1179,119 @@ class DocumentSidebar(Gtk.Box):
             self.history_listbox.add(row)
         self.history_listbox.show_all()
 
-    def set_markdown_results(
+    def set_file_browser_results(
             self,
-            root: Path | None,
-            files: list[Path],
-            truncated: bool,
+            root: FileUri | Path | None,
+            entries: list[FileInfo],
             status: str):
         for c in self.folder_listbox.get_children():
             self.folder_listbox.remove(c)
-        self.markdown_folder_label.set_text(str(root) if root else "No folder selected")
+        root_uri = self._coerce_uri(root) if root is not None else None
+        self.set_remote_tree_mode(root_uri.is_remote if root_uri else False)
+        self.markdown_folder_label.set_text(
+            root_uri.display() if root_uri else "No folder selected"
+        )
         self.markdown_status_label.set_text(status)
-        if root is None:
+        if root_uri is None:
             self.folder_listbox.add(
                 self._folder_tree_row("No folder selected", tooltip="No folder selected")
             )
             self.folder_listbox.show_all()
             return
-        if not files:
+        if root_uri.parent != root_uri:
             self.folder_listbox.add(
-                self._folder_tree_row("No markdown files", tooltip="No markdown files")
+                self._folder_tree_row(
+                    "..",
+                    file_path=root_uri.parent.to_path()
+                    if root_uri.parent.is_local else None,
+                    file_uri=root_uri.parent,
+                    tooltip=root_uri.parent.display(),
+                    folder=True,
+                )
+            )
+        visible_entries = [
+            info for info in entries
+            if self.show_hidden_files or not info.name.startswith(".")
+        ]
+        if not visible_entries:
+            hidden_count = len(entries) - len(visible_entries)
+            message = (
+                "Only hidden files are in this folder"
+                if hidden_count
+                else "No files in folder"
+            )
+            self.folder_listbox.add(
+                self._folder_tree_row(message, tooltip=message)
             )
             self.folder_listbox.show_all()
             return
-        root_resolved = root.resolve()
-        seen_folders = set()
-        for f in files:
-            try:
-                rel = f.resolve().relative_to(root_resolved)
-                parts = rel.parts
-            except ValueError:
-                parts = (f.name,)
-            for depth, folder in enumerate(parts[:-1]):
-                key = parts[:depth + 1]
-                if key not in seen_folders:
-                    seen_folders.add(key)
-                    self.folder_listbox.add(
-                        self._folder_tree_row(
-                            folder,
-                            depth=depth,
-                            tooltip=str(root_resolved.joinpath(*key)),
-                            folder=True,
-                        )
-                    )
+        for info in visible_entries:
+            file_uri = info.uri
             self.folder_listbox.add(
                 self._folder_tree_row(
-                    parts[-1],
-                    depth=max(0, len(parts) - 1),
-                    file_path=f,
-                    tooltip=str(f),
-                    folder=False,
-                )
-            )
-        if truncated:
-            self.folder_listbox.add(
-                self._folder_tree_row(
-                    "Scan limit reached; showing partial results.",
-                    tooltip="Scan limit reached; showing partial results.",
+                    info.name,
+                    file_path=file_uri.to_path() if file_uri.is_local else None,
+                    file_uri=file_uri,
+                    tooltip=file_uri.display(),
+                    folder=info.is_dir,
                 )
             )
         self.folder_listbox.show_all()
 
+    def set_markdown_results(
+            self,
+            root: FileUri | Path | None,
+            entries: list[FileInfo],
+            _truncated: bool,
+            status: str):
+        self.set_file_browser_results(root, entries, status)
+
+    def set_remote_tree_mode(self, is_remote: bool):
+        if is_remote:
+            self.choose_file_btn.set_tooltip_text(
+                "Browse remote server and choose a file"
+            )
+            self.choose_folder_btn.set_tooltip_text(
+                "Browse remote server and choose a folder"
+            )
+            return
+        self.choose_file_btn.set_tooltip_text(
+            "Choose a file and show its folder"
+        )
+        self.choose_folder_btn.set_tooltip_text("Choose folder")
+
+    def _on_show_hidden_toggled(self, button):
+        self.show_hidden_files = button.get_active()
+        self.on_toggle_hidden_files(self.show_hidden_files)
+
+    def _coerce_uri(self, value: FileUri | Path) -> FileUri:
+        if isinstance(value, FileUri):
+            return value
+        return FileUri.from_path(value)
+
+    def _relative_parts(self, root_uri: FileUri, file_uri: FileUri) -> tuple[str, ...]:
+        if root_uri.scheme == file_uri.scheme and root_uri.authority == file_uri.authority:
+            root_path = root_uri.path.rstrip("/") + "/"
+            if file_uri.path.startswith(root_path):
+                rel = file_uri.path[len(root_path):]
+                parts = tuple(part for part in rel.split("/") if part)
+                if parts:
+                    return parts
+        return (file_uri.name,)
+
     def _on_history_row(self, _lb, row):
-        path = getattr(row, "file_path", None)
-        if path is not None:
-            self.on_open_history(path)
+        recent = getattr(row, "recent", None)
+        if recent is not None:
+            self.on_open_history(recent)
 
     def _on_folder_tree_row(self, _lb, row):
+        file_uri = getattr(row, "file_uri", None)
+        if file_uri and getattr(row, "is_dir", False):
+            self.on_open_folder(file_uri)
+            return
+        if file_uri:
+            self.on_open_markdown(file_uri)
+            return
         file_path = getattr(row, "file_path", None)
         if file_path:
             self.on_open_markdown(Path(file_path))
@@ -694,6 +1305,7 @@ class Viewer(Gtk.ApplicationWindow):
         self.set_default_size(1140, 800)
 
         self.current_path: Path | None = None
+        self.current_uri: FileUri | None = None
         self.is_untitled: bool = False
         self.monitor: Gio.FileMonitor | None = None
         self.theme = self._detect_theme()
@@ -707,12 +1319,16 @@ class Viewer(Gtk.ApplicationWindow):
         self.outline_visible = False
         self._sidebar_width = 300
         self.typewriter_on = False
-        self._history: list[tuple[Path, int]] = []
+        self._history: list[tuple[FileUri, int]] = []
         self._history_idx: int = -1
         self._in_history_nav = False
         self.markdown_root: Path | None = None
-        self.markdown_files: list[Path] = []
+        self.markdown_root_uri: FileUri | None = None
+        self.markdown_files: list[FileUri] = []
+        self.folder_entries: list[FileInfo] = []
         self.markdown_scan_truncated: bool = False
+        self.show_hidden_files = False
+        self._folder_scan_generation = 0
 
         self._build_header()
         self._build_editor_widgets()
@@ -1086,9 +1702,12 @@ class Viewer(Gtk.ApplicationWindow):
             on_jump=self._goto_line,
             on_open_history=self._open_history_file,
             on_open_markdown=self._open_markdown_file,
+            on_open_folder=self._open_folder_tree_folder,
             on_choose_markdown_file=self._choose_markdown_file,
             on_choose_markdown_folder=self._choose_markdown_folder,
             on_rescan_markdown_folder=self._scan_markdown_folder,
+            on_toggle_hidden_files=self._toggle_folder_hidden_files,
+            on_remote_connect=self._open_remote_dialog,
         )
         self.outline_revealer = Gtk.Revealer()
         self.outline_revealer.set_no_show_all(True)
@@ -1110,8 +1729,8 @@ class Viewer(Gtk.ApplicationWindow):
         self._sync_sidebar_button()
         if visible:
             self._refresh_history_sidebar()
-            if self.current_path:
-                self._ensure_sidebar_folder_for_file(self.current_path)
+            if self.current_uri:
+                self._ensure_sidebar_folder_for_uri(self.current_uri)
             self.outline.update(self._headings_cache)
             GLib.idle_add(self._restore_sidebar_paned_position)
         elif hasattr(self, "middle_paned"):
@@ -1130,6 +1749,161 @@ class Viewer(Gtk.ApplicationWindow):
     def _on_sidebar_paned_position_changed(self, paned, _pspec):
         if self.outline_visible and paned.get_position() >= SIDEBAR_MIN_WIDTH:
             self._sidebar_width = paned.get_position()
+
+    def _run_storage_task(self, worker, on_done):
+        def _runner():
+            try:
+                result = worker()
+                error = None
+            except Exception as exc:
+                result = None
+                error = exc
+            GLib.idle_add(on_done, result, error)
+
+        threading.Thread(target=_runner, daemon=True).start()
+
+    def _open_remote_dialog(self, *_):
+        dialog = Gtk.Dialog(title="Connect SSH/SFTP", parent=self, flags=0)
+        dialog.add_buttons(
+            "Cancel",
+            Gtk.ResponseType.CANCEL,
+            "Connect",
+            Gtk.ResponseType.OK,
+        )
+        dialog.set_default_size(560, 330)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        box = dialog.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_top(10)
+        box.set_margin_bottom(10)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+
+        label = Gtk.Label(
+            label=(
+                "Quick connect: enter an SSH host alias or SFTP URI. Examples: "
+                "ssh catherine, ssh catherine ~/docs, sftp://user@host:22/path. "
+                "Authentication uses SSH agent/keys and known_hosts."
+            ),
+            xalign=0,
+        )
+        label.set_line_wrap(True)
+        box.pack_start(label, False, False, 0)
+
+        entry = Gtk.Entry()
+        entry.set_placeholder_text("ssh catherine")
+        entry.set_activates_default(True)
+        if self.markdown_root_uri and self.markdown_root_uri.is_remote:
+            entry.set_text(str(self.markdown_root_uri))
+        box.pack_start(entry, False, False, 0)
+
+        separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        separator.set_margin_top(6)
+        separator.set_margin_bottom(4)
+        box.pack_start(separator, False, False, 0)
+
+        manual_label = Gtk.Label(
+            label=(
+                "Manual connection. Fill Host/IP to use these fields instead "
+                "of the quick field above."
+            ),
+            xalign=0,
+        )
+        manual_label.set_line_wrap(True)
+        box.pack_start(manual_label, False, False, 0)
+
+        grid = Gtk.Grid(row_spacing=8, column_spacing=10)
+        grid.set_column_homogeneous(False)
+        host_entry = Gtk.Entry()
+        host_entry.set_placeholder_text("catherine or 192.0.2.10")
+        user_entry = Gtk.Entry()
+        user_entry.set_placeholder_text("optional username")
+        port_entry = Gtk.Entry()
+        port_entry.set_placeholder_text("22")
+        path_entry = Gtk.Entry()
+        path_entry.set_placeholder_text("/home/user/docs or ~/docs")
+        if self.markdown_root_uri and self.markdown_root_uri.is_remote:
+            path_entry.set_placeholder_text(self.markdown_root_uri.path)
+        for widget in (host_entry, user_entry, port_entry, path_entry):
+            widget.set_hexpand(True)
+            widget.set_activates_default(True)
+        port_entry.set_width_chars(6)
+
+        grid.attach(Gtk.Label(label="Host/IP", xalign=0), 0, 0, 1, 1)
+        grid.attach(host_entry, 1, 0, 3, 1)
+        grid.attach(Gtk.Label(label="User", xalign=0), 0, 1, 1, 1)
+        grid.attach(user_entry, 1, 1, 1, 1)
+        grid.attach(Gtk.Label(label="Port", xalign=0), 2, 1, 1, 1)
+        grid.attach(port_entry, 3, 1, 1, 1)
+        grid.attach(Gtk.Label(label="Path", xalign=0), 0, 2, 1, 1)
+        grid.attach(path_entry, 1, 2, 3, 1)
+        box.pack_start(grid, False, False, 0)
+
+        dialog.show_all()
+        response = dialog.run()
+        value = entry.get_text().strip()
+        manual_host = host_entry.get_text().strip()
+        manual_user = user_entry.get_text().strip()
+        manual_port = port_entry.get_text().strip()
+        manual_path = path_entry.get_text().strip()
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK:
+            return
+        try:
+            if manual_host:
+                value = self._manual_remote_target(
+                    manual_host,
+                    manual_user,
+                    manual_port,
+                    manual_path,
+                )
+            if not value:
+                return
+            uri = parse_remote_target(value)
+        except ValueError as exc:
+            self.outline.set_remote_status("failed", "Remote failed", str(exc))
+            self._render_error(f"Invalid SFTP URI:\n{exc}")
+            return
+
+        self._set_remote_markdown_root(uri)
+
+    def _manual_remote_target(
+            self,
+            host: str,
+            username: str,
+            port: str,
+            path: str) -> str:
+        host = host.strip()
+        username = username.strip()
+        port = port.strip()
+        path = path.strip()
+        if not host:
+            raise ValueError("Manual connection requires a Host/IP value")
+        if username and "@" in host:
+            raise ValueError("Use either user@host or the User field, not both")
+        if port:
+            if not port.isdigit():
+                raise ValueError("Port must be a number")
+            number = int(port)
+            if number < 1 or number > 65535:
+                raise ValueError("Port must be between 1 and 65535")
+        if ":" in host and not host.startswith("[") and host.count(":") > 1:
+            host = f"[{host}]"
+        authority = f"{username}@{host}" if username else host
+        if port:
+            authority = f"{authority}:{port}"
+        if path:
+            return f"{authority} {shlex.quote(path)}"
+        return authority
+
+    def _set_remote_markdown_root(self, uri: FileUri):
+        if uri.name.lower().endswith(tuple(MARKDOWN_EXTENSIONS)):
+            uri = uri.parent
+        self.markdown_root_uri = uri
+        self.markdown_root = None
+        save_markdown_root_uri(uri)
+        self.outline.set_remote_status("connecting", "Connecting", uri.authority)
+        self._scan_markdown_folder()
 
     def _ensure_sidebar_folder_for_file(
             self,
@@ -1156,48 +1930,113 @@ class Viewer(Gtk.ApplicationWindow):
 
         if needs_update:
             self.markdown_root = folder
+            self.markdown_root_uri = FileUri.from_path(folder)
             save_markdown_root(folder)
             self._scan_markdown_folder()
         elif force_rescan:
             self._scan_markdown_folder()
 
+    def _ensure_sidebar_folder_for_uri(
+            self,
+            uri: FileUri,
+            force_rescan: bool = False):
+        if uri.is_local:
+            self._ensure_sidebar_folder_for_file(uri.to_path(), force_rescan)
+            return
+        folder_uri = uri.parent
+        root = self.markdown_root_uri
+        needs_update = (
+            root is None
+            or root.scheme != folder_uri.scheme
+            or root.authority != folder_uri.authority
+            or not (uri.path + "/").startswith(root.path.rstrip("/") + "/")
+        )
+        if needs_update:
+            self.markdown_root = None
+            self.markdown_root_uri = folder_uri
+            save_markdown_root_uri(folder_uri)
+            self._scan_markdown_folder()
+        elif force_rescan:
+            self._scan_markdown_folder()
+
     def _refresh_history_sidebar(self):
-        recents = [p for p in load_recents() if p.exists()]
+        recents = []
+        for recent in load_recents():
+            if recent.local_path is not None and not recent.local_path.exists():
+                continue
+            recents.append(recent)
         self.outline.update_history(recents[:RECENT_MAX])
 
-    def _open_history_file(self, path: Path):
-        if not path.exists():
-            self._render_error(f"Could not read {path}: file not found")
+    def _open_history_file(self, recent: RecentDocument | Path):
+        recent = _coerce_recent(recent)
+        if recent is None:
+            return
+        if recent.uri.is_local and not recent.uri.to_path().exists():
+            self._render_error(f"Could not read {recent.subtitle}: file not found")
             self._refresh_history_sidebar()
             return
         if not self._confirm_discard_if_dirty():
             return
-        self.load_file(path)
+        self.load_document_uri(recent.uri, update_sidebar_folder=False)
 
-    def _open_markdown_file(self, path: Path):
-        if not path.exists():
-            self._render_error(f"Could not read {path}: file not found")
+    def _open_markdown_file(self, target: FileUri | Path):
+        try:
+            uri = target if isinstance(target, FileUri) else FileUri.from_path(target)
+        except (OSError, ValueError) as exc:
+            self._render_error(f"Could not read {target}: {exc}")
             return
+        if uri.is_local:
+            path = uri.to_path()
+            if not path.exists():
+                self._render_error(f"Could not read {path}: file not found")
+                return
         if not self._confirm_discard_if_dirty():
             return
-        self.load_file(path)
+        self.load_document_uri(uri)
 
     def _restore_markdown_sidebar_state(self):
-        root = load_markdown_root()
-        if root is None:
-            self.outline.set_markdown_results(
+        root_uri = load_markdown_root_uri()
+        if root_uri is None:
+            self.outline.set_file_browser_results(
                 None,
                 [],
-                False,
-                "Choose a folder to scan markdown files.",
+                "Choose a folder to browse.",
             )
             return
-        self.markdown_root = root
+        self.markdown_root_uri = root_uri
+        self.markdown_root = root_uri.to_path() if root_uri.is_local else None
         self._scan_markdown_folder()
 
+    def _open_folder_tree_folder(self, target: FileUri | Path):
+        try:
+            uri = target if isinstance(target, FileUri) else FileUri.from_path(target)
+        except (OSError, ValueError) as exc:
+            self._render_error(f"Could not open folder {target}: {exc}")
+            return
+        self.markdown_root_uri = uri
+        self.markdown_root = uri.to_path() if uri.is_local else None
+        save_markdown_root_uri(uri)
+        self._scan_markdown_folder()
+
+    def _toggle_folder_hidden_files(self, show_hidden: bool):
+        self.show_hidden_files = show_hidden
+        root = self.markdown_root_uri
+        if root is None:
+            self.outline.set_file_browser_results(
+                None,
+                [],
+                "Choose a folder to browse.",
+            )
+            return
+        status = self._folder_browser_status(self.folder_entries)
+        self.outline.set_file_browser_results(root, self.folder_entries, status)
+
     def _choose_markdown_file(self, *_):
+        if self.markdown_root_uri and self.markdown_root_uri.is_remote:
+            self._open_remote_browser_dialog("file")
+            return
         d = Gtk.FileChooserDialog(
-            title="Choose markdown file",
+            title="Choose file",
             parent=self,
             action=Gtk.FileChooserAction.OPEN,
         )
@@ -1207,11 +2046,6 @@ class Viewer(Gtk.ApplicationWindow):
             "Select",
             Gtk.ResponseType.OK,
         )
-        md = Gtk.FileFilter()
-        md.set_name("Markdown")
-        for p in ("*.md", "*.markdown", "*.mdown", "*.mkd", "*.txt"):
-            md.add_pattern(p)
-        d.add_filter(md)
         af = Gtk.FileFilter()
         af.set_name("All files")
         af.add_pattern("*")
@@ -1227,10 +2061,14 @@ class Viewer(Gtk.ApplicationWindow):
             return
         selected = Path(chosen).resolve()
         self.markdown_root = selected if selected.is_dir() else selected.parent
-        save_markdown_root(self.markdown_root)
+        self.markdown_root_uri = FileUri.from_path(self.markdown_root)
+        save_markdown_root_uri(self.markdown_root_uri)
         self._scan_markdown_folder()
 
     def _choose_markdown_folder(self, *_):
+        if self.markdown_root_uri and self.markdown_root_uri.is_remote:
+            self._open_remote_browser_dialog("folder")
+            return
         d = Gtk.FileChooserDialog(
             title="Choose markdown folder",
             parent=self,
@@ -1252,57 +2090,142 @@ class Viewer(Gtk.ApplicationWindow):
         if not chosen:
             return
         self.markdown_root = Path(chosen).resolve()
-        save_markdown_root(self.markdown_root)
+        self.markdown_root_uri = FileUri.from_path(self.markdown_root)
+        save_markdown_root_uri(self.markdown_root_uri)
         self._scan_markdown_folder()
+
+    def _open_remote_browser_dialog(self, kind: str):
+        root = self.markdown_root_uri
+        if root is None or not root.is_remote:
+            return
+        dialog = RemoteFileBrowserDialog(self, root, kind)
+        dialog.show_all()
+        response = dialog.run()
+        uri = dialog.result_uri if response == Gtk.ResponseType.OK else None
+        dialog.destroy()
+        if uri is None:
+            return
+        if kind == "file":
+            uri = uri.parent
+        self._set_remote_markdown_root(uri)
 
     def _scan_markdown_folder(self, *_):
         self.markdown_files = []
+        self.folder_entries = []
         self.markdown_scan_truncated = False
-        if self.markdown_root is None or not self.markdown_root.is_dir():
-            self.outline.set_markdown_results(
+        root_uri = self.markdown_root_uri
+        if root_uri is None and self.markdown_root is not None:
+            root_uri = FileUri.from_path(self.markdown_root)
+            self.markdown_root_uri = root_uri
+        if root_uri is None:
+            self.outline.set_file_browser_results(
                 None,
                 [],
-                False,
-                "Choose a folder to scan markdown files.",
+                "Choose a folder to browse.",
             )
             return
-        root = self.markdown_root.resolve()
+        if root_uri.is_remote:
+            self._scan_remote_markdown_folder(root_uri)
+            return
+        self.outline.set_remote_status("idle", "SSH", "Connect")
+        backend = backend_for(root_uri)
         try:
-            for dirpath, dirnames, filenames in os.walk(root):
-                dirnames[:] = [
-                    d for d in dirnames
-                    if d not in MARKDOWN_SKIP_DIRS
-                ]
-                for name in filenames:
-                    if Path(name).suffix.lower() not in MARKDOWN_EXTENSIONS:
-                        continue
-                    self.markdown_files.append(Path(dirpath) / name)
-                    if len(self.markdown_files) >= MARKDOWN_SCAN_MAX:
-                        self.markdown_scan_truncated = True
-                        break
-                if self.markdown_scan_truncated:
-                    break
-            self.markdown_files.sort(key=lambda p: str(p).lower())
+            info = backend.stat(root_uri)
+            if info.is_file:
+                root_uri = root_uri.parent
+            if not backend.stat(root_uri).is_dir:
+                raise OSError(f"{root_uri.display()} is not a folder")
+            entries = backend.list_dir(root_uri)
         except OSError as exc:
-            self.outline.set_markdown_results(
-                root,
+            self.outline.set_file_browser_results(
+                root_uri,
                 [],
-                False,
-                f"Scan failed: {exc}",
+                f"Load failed: {exc}",
             )
             return
 
-        count = len(self.markdown_files)
-        if self.markdown_scan_truncated:
-            status = f"Showing first {count} files (scan limit reached)."
-        else:
-            status = f"Found {count} markdown files."
-        self.outline.set_markdown_results(
-            root,
-            self.markdown_files,
-            self.markdown_scan_truncated,
-            status,
+        self.markdown_root_uri = root_uri
+        self.markdown_root = root_uri.to_path()
+        save_markdown_root_uri(root_uri)
+        self.folder_entries = entries
+        self.outline.set_file_browser_results(
+            root_uri,
+            entries,
+            self._folder_browser_status(entries),
         )
+
+    def _scan_remote_markdown_folder(self, root_uri: FileUri):
+        self._folder_scan_generation += 1
+        generation = self._folder_scan_generation
+        self.outline.set_file_browser_results(
+            root_uri,
+            [],
+            "Loading remote folder...",
+        )
+        self.outline.set_remote_status(
+            "connecting",
+            "Loading",
+            root_uri.authority,
+        )
+
+        def worker():
+            backend = backend_for(root_uri)
+            normalize = getattr(backend, "normalize_uri", None)
+            root = normalize(root_uri) if normalize else root_uri
+            root_info = backend.stat(root)
+            if root_info.is_file:
+                root = root.parent
+            entries = backend.list_dir(root)
+            return root, entries
+
+        def done(result, error):
+            if generation != self._folder_scan_generation:
+                return False
+            if error is not None:
+                self.markdown_files = []
+                self.folder_entries = []
+                self.outline.set_remote_status(
+                    "failed",
+                    "Remote failed",
+                    str(error),
+                )
+                self.outline.set_file_browser_results(
+                    root_uri,
+                    [],
+                    f"Remote folder load failed: {error}",
+                )
+                return False
+            root, entries = result
+            self.markdown_root_uri = root
+            self.markdown_root = None
+            save_markdown_root_uri(root)
+            self.folder_entries = entries
+            self.outline.set_remote_status(
+                "connected",
+                "SSH connected",
+                root.authority,
+            )
+            self.outline.set_file_browser_results(
+                root,
+                entries,
+                self._folder_browser_status(entries),
+            )
+            return False
+
+        self._run_storage_task(worker, done)
+
+    def _folder_browser_status(self, entries: list[FileInfo]) -> str:
+        visible = [
+            info for info in entries
+            if self.show_hidden_files or not info.name.startswith(".")
+        ]
+        hidden_count = len(entries) - len(visible)
+        count = len(visible)
+        noun = "item" if count == 1 else "items"
+        if hidden_count and not self.show_hidden_files:
+            hidden_noun = "item" if hidden_count == 1 else "items"
+            return f"{count} {noun} shown ({hidden_count} hidden {hidden_noun})."
+        return f"{count} {noun}."
 
     # ---- layout -------------------------------------------------------------
 
@@ -1437,38 +2360,85 @@ class Viewer(Gtk.ApplicationWindow):
         if chosen:
             self.load_file(Path(chosen))
 
-    def load_file(self, path: Path):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            self._render_error(f"Could not read {path}: {exc}")
+    def load_file(self, path: Path, *, update_sidebar_folder: bool = True):
+        self.load_document_uri(FileUri.from_path(path), update_sidebar_folder=update_sidebar_folder)
+
+    def load_document_uri(
+            self,
+            uri: FileUri,
+            *,
+            update_sidebar_folder: bool = True):
+        if uri.is_remote:
+            self.outline.set_remote_status("connecting", "Opening", uri.authority)
+
+            def worker():
+                return backend_for(uri).read_bytes(uri).decode("utf-8")
+
+            def done(text, error):
+                if error is not None:
+                    self.outline.set_remote_status(
+                        "failed",
+                        "Remote failed",
+                        str(error),
+                    )
+                    self._render_error(f"Could not read {uri.display()}: {error}")
+                    return False
+                self.outline.set_remote_status(
+                    "connected",
+                    "SSH connected",
+                    uri.authority,
+                )
+                self._load_document_text(uri, text, update_sidebar_folder)
+                return False
+
+            self._run_storage_task(worker, done)
             return
+
+        try:
+            text = backend_for(uri).read_bytes(uri).decode("utf-8")
+        except (OSError, UnicodeDecodeError, StorageError) as exc:
+            self._render_error(f"Could not read {uri.display()}: {exc}")
+            return
+        self._load_document_text(uri, text, update_sidebar_folder)
+
+    def _load_document_text(
+            self,
+            uri: FileUri,
+            text: str,
+            update_sidebar_folder: bool):
+        path = uri.to_path() if uri.is_local else None
         prior_line = None
-        if self.current_path and not self._in_history_nav:
+        if self.current_uri and not self._in_history_nav:
             cur = self.editor_buffer.get_iter_at_mark(
                 self.editor_buffer.get_insert())
             prior_line = cur.get_line() if self.mode == "edit" else 0
-            self._history_push(self.current_path, prior_line)
+            self._history_push(self.current_uri, prior_line)
+        self.current_uri = uri
         self.current_path = path
         self.is_untitled = False
         self.edit_btn.set_sensitive(True)
-        add_recent(path)
+        add_recent_uri(uri)
         self._refresh_history_sidebar()
-        if self.outline_visible:
-            self._ensure_sidebar_folder_for_file(path)
-        base_uri = path.parent.as_uri() + "/"
+        if self.outline_visible and update_sidebar_folder:
+            self._ensure_sidebar_folder_for_uri(uri)
+        base_dir = path.parent if path else None
+        base_uri = path.parent.as_uri() + "/" if path else APP_DIR.as_uri() + "/"
         self.webview.load_html(
             render(
                 text,
                 self.theme,
-                path.name,
-                path.parent),
+                uri.name,
+                base_dir),
             base_uri)
         self._load_editor_text(text)
         self._headings_cache = extract_headings(text)
         if self.outline_visible:
             self.outline.update(self._headings_cache)
-        self._watch_file(path)
+        if path:
+            self._watch_file(path)
+        elif self.monitor is not None:
+            self.monitor.cancel()
+            self.monitor = None
         self._update_title()
         self._schedule_wordcount()
 
@@ -1492,8 +2462,8 @@ class Viewer(Gtk.ApplicationWindow):
             GLib.timeout_add(120, self._reload)
 
     def _reload(self, *_):
-        if self.current_path and self.current_path.exists():
-            self.load_file(self.current_path)
+        if self.current_uri:
+            self.load_document_uri(self.current_uri)
         else:
             self._render_welcome()
         return False
@@ -1505,6 +2475,7 @@ class Viewer(Gtk.ApplicationWindow):
             APP_DIR.as_uri() + "/")
         self.edit_btn.set_sensitive(False)
         self.current_path = None
+        self.current_uri = None
         self.is_untitled = False
         self._headings_cache = []
         if self.outline_visible:
@@ -1520,8 +2491,8 @@ class Viewer(Gtk.ApplicationWindow):
                                APP_DIR.as_uri() + "/")
 
     def _refresh_preview(self):
-        if self.current_path and self.current_path.exists() and self.mode == "preview":
-            self.load_file(self.current_path)
+        if self.current_uri and self.mode == "preview":
+            self.load_document_uri(self.current_uri)
         elif self.mode == "edit":
             self._render_live_preview()
         else:
@@ -1548,7 +2519,7 @@ class Viewer(Gtk.ApplicationWindow):
         if mode == self.mode:
             return
         if mode == "edit":
-            if not self.current_path and not self.is_untitled:
+            if not self.current_uri and not self.is_untitled:
                 self.edit_btn.set_active(False)
                 return
             self.mode = "edit"
@@ -1557,7 +2528,7 @@ class Viewer(Gtk.ApplicationWindow):
                 self.editor.grab_focus()
         else:
             if self.editor_buffer.get_modified():
-                if self.is_untitled or not self.current_path:
+                if self.is_untitled or not self.current_uri:
                     if not self._save_as():
                         self.edit_btn.set_active(True)
                         return
@@ -1565,8 +2536,8 @@ class Viewer(Gtk.ApplicationWindow):
                     self._save()
             self.mode = "preview"
             self._refresh_content()
-            if self.current_path and self.current_path.exists():
-                self.load_file(self.current_path)
+            if self.current_uri:
+                self.load_document_uri(self.current_uri)
 
     def _set_edit_view(self, view, btn):
         if getattr(self, "_view_switching", False):
@@ -1625,8 +2596,12 @@ class Viewer(Gtk.ApplicationWindow):
     def _render_live_preview(self):
         self._live_timer = None
         text = self._buffer_text()
-        base = (self.current_path.parent if self.current_path else APP_DIR)
-        title = self.current_path.name if self.current_path else "untitled.md"
+        base = (
+            self.current_path.parent
+            if self.current_uri and self.current_uri.is_local and self.current_path
+            else APP_DIR
+        )
+        title = self.current_uri.name if self.current_uri else "untitled.md"
         self.webview.load_html(render(text, self.theme, title, base),
                                base.as_uri() + "/")
         return False
@@ -1647,12 +2622,14 @@ class Viewer(Gtk.ApplicationWindow):
         return False
 
     def _update_title(self):
-        if self.current_path or self.is_untitled:
-            name = self.current_path.name if self.current_path else "untitled.md"
+        if self.current_uri or self.is_untitled:
+            name = self.current_uri.name if self.current_uri else "untitled.md"
             dirty = "  •" if self.editor_buffer.get_modified() else ""
             self.header.props.title = f"{name}{dirty}"
-            self.header.props.subtitle = (str(self.current_path.parent)
-                                          if self.current_path else "(unsaved)")
+            self.header.props.subtitle = (
+                self.current_uri.parent.display()
+                if self.current_uri else "(unsaved)"
+            )
         else:
             self.header.props.title = APP_NAME
             self.header.props.subtitle = None
@@ -1708,6 +2685,7 @@ class Viewer(Gtk.ApplicationWindow):
                 "new": self._on_new,
                 "open": self._on_open_clicked,
                 "sidebar": lambda *_: self._set_sidebar_visible(True),
+                "remote": self._open_remote_from_welcome,
             }
             handler = dispatch.get(action)
             if handler is None:
@@ -1727,6 +2705,10 @@ class Viewer(Gtk.ApplicationWindow):
                 return
             self._apply_task_toggle(line, checked)
 
+    def _open_remote_from_welcome(self, *_):
+        self._set_sidebar_visible(True)
+        self._open_remote_dialog()
+
     def _apply_task_toggle(self, line, checked):
         if self.mode == "edit":
             buf = self.editor_buffer
@@ -1744,11 +2726,12 @@ class Viewer(Gtk.ApplicationWindow):
                 buf.insert(start, nt)
                 buf.end_user_action()
         else:
-            if not self.current_path:
+            if not self.current_uri:
                 return
             try:
-                content = self.current_path.read_text(encoding="utf-8")
-            except OSError:
+                content = backend_for(self.current_uri).read_bytes(
+                    self.current_uri).decode("utf-8")
+            except (OSError, UnicodeDecodeError, StorageError):
                 return
             lines = content.split("\n")
             if not (0 <= line < len(lines)):
@@ -1759,9 +2742,11 @@ class Viewer(Gtk.ApplicationWindow):
             lines[line] = new_line
             try:
                 self._suppress_reload_until = GLib.get_monotonic_time() / 1e6 + 1.0
-                self.current_path.write_text(
-                    "\n".join(lines), encoding="utf-8")
-            except OSError:
+                backend_for(self.current_uri).write_bytes_atomic(
+                    self.current_uri,
+                    "\n".join(lines).encode("utf-8"),
+                )
+            except (OSError, StorageError):
                 return
             self._reload()
 
@@ -1945,10 +2930,11 @@ class Viewer(Gtk.ApplicationWindow):
 
     # ---- back/forward navigation --------------------------------------------
 
-    def _history_push(self, path: Path, line: int):
-        if not path:
+    def _history_push(self, target: FileUri | Path, line: int):
+        if not target:
             return
-        entry = (path, max(0, int(line or 0)))
+        uri = target if isinstance(target, FileUri) else FileUri.from_path(target)
+        entry = (uri, max(0, int(line or 0)))
         if self._history and self._history_idx >= 0 and self._history[self._history_idx] == entry:
             return
         # truncate forward history
@@ -1963,12 +2949,12 @@ class Viewer(Gtk.ApplicationWindow):
     def _history_back(self, *_):
         if self._history_idx <= 0:
             return
-        if self.current_path:
+        if self.current_uri:
             cur_line = self.editor_buffer.get_iter_at_mark(
                 self.editor_buffer.get_insert()).get_line() if self.mode == "edit" else 0
             if self._history_idx >= len(self._history) or \
-               self._history[self._history_idx] != (self.current_path, cur_line):
-                self._history_push(self.current_path, cur_line)
+               self._history[self._history_idx] != (self.current_uri, cur_line):
+                self._history_push(self.current_uri, cur_line)
         self._history_idx -= 1
         self._navigate_to(*self._history[self._history_idx])
 
@@ -1978,12 +2964,12 @@ class Viewer(Gtk.ApplicationWindow):
         self._history_idx += 1
         self._navigate_to(*self._history[self._history_idx])
 
-    def _navigate_to(self, path: Path, line: int):
-        if not path.exists():
+    def _navigate_to(self, uri: FileUri, line: int):
+        if uri.is_local and not uri.to_path().exists():
             return
         self._in_history_nav = True
         try:
-            self.load_file(path)
+            self.load_document_uri(uri)
             if line > 0:
                 GLib.idle_add(self._goto_line, line)
         finally:
@@ -2050,8 +3036,8 @@ class Viewer(Gtk.ApplicationWindow):
             ("Open Documentation", "", "action:docs"),
             ("Report an Issue", "", "action:issues"),
         ]
-        for l, s, k in actions:
-            items.append({"label": l, "sub": s, "key": k})
+        for label, shortcut, key in actions:
+            items.append({"label": label, "sub": shortcut, "key": key})
         src = ""
         if self.mode == "edit":
             src = self._buffer_text()
@@ -2528,6 +3514,7 @@ class Viewer(Gtk.ApplicationWindow):
         if not self._confirm_discard_if_dirty():
             return
         self.current_path = None
+        self.current_uri = None
         self.is_untitled = True
         self.edit_btn.set_sensitive(True)
         self._load_editor_text("# Untitled\n\n")
@@ -2544,9 +3531,9 @@ class Viewer(Gtk.ApplicationWindow):
     def _save(self, *_):
         if self.mode != "edit" and not self.editor_buffer.get_modified():
             return True
-        if self.is_untitled or not self.current_path:
+        if self.is_untitled or not self.current_uri:
             return self._save_as()
-        return self._write_to(self.current_path)
+        return self._write_to(self.current_uri)
 
     def _save_as(self, *_):
         d = Gtk.FileChooserDialog(title="Save markdown file", parent=self,
@@ -2560,6 +3547,8 @@ class Viewer(Gtk.ApplicationWindow):
         if self.current_path:
             d.set_current_folder(str(self.current_path.parent))
             d.set_current_name(self.current_path.name)
+        elif self.current_uri:
+            d.set_current_name(self.current_uri.name)
         else:
             d.set_current_name("untitled.md")
         r = d.run()
@@ -2571,8 +3560,9 @@ class Viewer(Gtk.ApplicationWindow):
         if not self._write_to(p):
             return False
         self.current_path = p
+        self.current_uri = FileUri.from_path(p)
         self.is_untitled = False
-        add_recent(p)
+        add_recent_uri(self.current_uri)
         self._refresh_history_sidebar()
         if self.outline_visible:
             self._ensure_sidebar_folder_for_file(p, force_rescan=True)
@@ -2580,17 +3570,19 @@ class Viewer(Gtk.ApplicationWindow):
         self._update_title()
         return True
 
-    def _write_to(self, path: Path) -> bool:
+    def _write_to(self, target: FileUri | Path) -> bool:
         text = self._buffer_text()
+        uri = target if isinstance(target, FileUri) else FileUri.from_path(target)
         try:
             self._suppress_reload_until = GLib.get_monotonic_time() / 1e6 + 1.0
-            path.write_text(text, encoding="utf-8")
-        except OSError as exc:
-            self._render_error(f"Could not write {path}: {exc}")
+            backend_for(uri).write_bytes_atomic(uri, text.encode("utf-8"))
+        except (OSError, StorageError) as exc:
+            self._render_error(f"Could not write {uri.display()}: {exc}")
             return False
         self.editor_buffer.set_modified(False)
         self._update_title()
-        write_snapshot(path, text)
+        if uri.is_local:
+            write_snapshot(uri.to_path(), text)
         return True
 
     def _confirm_discard_if_dirty(self):
@@ -2740,7 +3732,7 @@ class Viewer(Gtk.ApplicationWindow):
         d = Gtk.AboutDialog(transient_for=self, modal=True)
         d.set_program_name(APP_NAME)
         d.set_version(__version__)
-        d.set_comments("Minimal, modern markdown viewer + editor for Linux.")
+        d.set_comments("Markdown editor with local and SSH/SFTP file browsing for Linux.")
         d.set_copyright(f"© 2026 {DEVELOPER}")
         d.set_license_type(Gtk.License.MIT_X11)
         d.set_website(WEBSITE)

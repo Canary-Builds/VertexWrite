@@ -35,23 +35,21 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QAction, QColor, QDesktopServices, QDragEnterEvent, QDropEvent, QFont,
-    QIcon, QKeySequence, QPainter, QPixmap, QSyntaxHighlighter,
+    QIcon, QKeySequence, QPainter, QSyntaxHighlighter,
     QTextCharFormat, QTextCursor,
 )
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QDockWidget, QFileDialog,
     QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMainWindow, QMenu, QMenuBar, QMessageBox,
+    QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
     QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QSplitter,
-    QStatusBar, QTabWidget, QToolBar, QToolButton, QTreeWidget,
+    QStatusBar, QToolBar, QToolButton, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from vertexwrite_core import (
-    HEADING_RE,
     LIST_BULLET_RE,
     LIST_ORDERED_RE,
     MD_LINK_RE,
@@ -68,7 +66,7 @@ from vertexwrite_core import (
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.9"
+__version__ = "0.7.0"
 
 APP_NAME = "VertexWrite"
 APP_SLUG = "vertexwrite"
@@ -222,8 +220,7 @@ def save_markdown_root(path: Path | None):
 
 def welcome_html(theme: str) -> str:
     md_text = (
-        f"# VertexWrite\n\n*v{__version__} — minimal, modern markdown viewer "
-        "+ editor.*\n\n"
+        f"# VertexWrite\n\n*v{__version__} — markdown viewer + editor.*\n\n"
         '<div class="vw-actions">\n'
         '<button type="button" class="vw-action" data-vw-action="new">New document</button>\n'
         '<button type="button" class="vw-action secondary" data-vw-action="open">Open file</button>\n'
@@ -1019,7 +1016,6 @@ class Viewer(QMainWindow):
         self._do_find(text, forward=forward)
 
     def _do_find(self, text: str, forward: bool = True):
-        flags = QTextCursor.MoveOperation.Start if forward else QTextCursor.MoveOperation.End
         doc = self.editor.document()
         cursor = self.editor.textCursor()
         if forward:
@@ -2490,7 +2486,7 @@ class Viewer(QMainWindow):
             self, f"About {APP_NAME}",
             f"<h2>{APP_NAME}</h2>"
             f"<p>Version {__version__}</p>"
-            f"<p>Minimal, modern markdown viewer + editor.</p>"
+            f"<p>Markdown viewer + editor.</p>"
             f"<p>&copy; 2026 {DEVELOPER}</p>"
             f"<p>License: MIT</p>"
             f'<p><a href="{REPO_URL}">{REPO_URL}</a></p>')

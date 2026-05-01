@@ -1,10 +1,10 @@
 # VertexWrite
 
-> Minimal, modern markdown viewer **and editor** for Linux and Windows.
+> Markdown editor with local and SSH/SFTP file browsing for Linux and Windows.
 > GTK3 + WebKit on Linux. PyQt6 + QtWebEngine on Windows.
 > No Electron, no tray daemon, no account. Starts in under a second.
 
-[![version](https://img.shields.io/badge/version-0.6.9-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.7.0-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)](#install)
 [![snap](https://img.shields.io/badge/Snapcraft-vertexwrite-E95420?logo=snapcraft&logoColor=white)](https://snapcraft.io/vertexwrite)
@@ -33,7 +33,7 @@
 
 ## What it is
 
-A single Python script that turns any `.md` file into a clean, themeable reading view — hitting `Ctrl+E` flips it into a proper editor with a focused formatting toolbar, a command palette, folder-wide search, a document sidebar with recents and a folder tree, live split-view preview with scroll-sync, auto-save snapshots, and live math / diagrams.
+A single Python app that turns any `.md` file into a clean, themeable reading view — hitting `Ctrl+E` flips it into a proper editor with a focused formatting toolbar, a command palette, folder-wide search, a document sidebar with recents, local and SSH/SFTP file browsing, live split-view preview with scroll-sync, auto-save snapshots, and live math / diagrams.
 
 The chrome stays minimal: compact header buttons, one toolbar that only appears in edit mode, and keyboard access for everything else.
 
@@ -66,7 +66,7 @@ The chrome stays minimal: compact header buttons, one toolbar that only appears 
 ### Navigation
 - **Command palette** (`Ctrl+P`) — fuzzy jump to actions, headings, or files in the folder
 - **Folder full-text search** (`Ctrl+Shift+F`) — recursive `.md`, context snippets
-- **Document sidebar** (`Ctrl+Shift+O`) — resizable left pane with recent documents on top and the current folder tree below; choose either a folder or a file to set the tree root
+- **Document sidebar** (`Ctrl+Shift+O`) — resizable left pane with recent documents on top and a file-browser folder tree below; choose a local folder/file or connect to SSH/SFTP, browse folders/files, and toggle hidden dotfiles
 - **Back / forward** (`Alt+←` / `Alt+→`) — history of opened files + cursor lines
 
 ### Palette actions (Ctrl+P)

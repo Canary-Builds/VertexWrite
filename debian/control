@@ -20,6 +20,7 @@ Depends:
  python3,
  python3-gi,
  python3-markdown,
+ python3-paramiko,
  python3-pygments,
  gir1.2-gtk-3.0,
  gir1.2-webkit2-4.1,

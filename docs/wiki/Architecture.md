@@ -5,6 +5,7 @@ VertexWrite now has a shared rendering core plus two native frontends:
 - `vertexwrite.py` for Linux (`GTK3 + WebKit2 + GtkSourceView`)
 - `vertexwrite_win.py` for Windows (`PyQt6 + QtWebEngine + QWebChannel`)
 - `vertexwrite_core.py` for shared markdown/rendering helpers
+- `vertexwrite_files.py` for storage URI and backend primitives
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -120,6 +121,36 @@ Timer-based debouncing for expensive operations to avoid flicker or compute spik
 
 `Gio.File.monitor_file(...)` watches the current document for external changes. During self-save we suppress reload for ~1 s (`_suppress_reload_until`) so our own writes don't race.
 
+## Storage boundary
+
+`vertexwrite_files.py` owns stable document identifiers and backend dispatch:
+
+| Type | Responsibility |
+|---|---|
+| `FileUri` | Parse and serialize `file://...` and future `sftp://user@host:port/...` document IDs |
+| `FileInfo` | Backend-neutral file metadata |
+| `LocalBackend` | Local stat/list/read/write operations, including temp-file + `os.replace` atomic writes |
+| `SftpBackend` | Paramiko-backed SFTP stat/list/read/write operations with strict host-key policy |
+| `BackendRegistry` | Scheme-to-backend lookup |
+
+The Linux frontend stores the active document as a `FileUri`. Local documents still keep a `Path` mirror for features that require native filesystem access, while SFTP documents route open/save and sidebar folder browsing through the backend registry. Recent documents persist URI-shaped records: `{"uri": "file:///..."}`. Legacy string-path recents are migrated on read.
+
+The document sidebar has a bottom SSH/SFTP control. It accepts `sftp://user@host:port/path` folder URIs and SSH-style shorthand such as `ssh catherine`, bare `catherine`, `ssh -p 2200 -l user host ~/docs`, and `host:/path`. The same dialog also exposes manual Host/IP, User, Port, and Path fields; filling Host/IP makes the manual fields the selected connection method. Host aliases are resolved through SSH config during connection. If no path is supplied, the SFTP backend normalizes `.` to the remote login directory before listing.
+
+The folder tree is a browser, not a markdown-only scan. It lists the current directory's folders and files, includes parent-folder navigation, opens files through the backend registry, and has a dotfile visibility toggle. When the active folder tree root is remote, the sidebar file/folder buttons must remain inside the SFTP boundary. They open a remote SFTP browser on the active connection instead of opening a local `Gtk.FileChooserDialog`; local choosers are only used when the active folder tree root is local. The remote browser lists folders and files, supports Home, Up, Refresh, direct path entry, a hidden-dotfile toggle, and double-click folder navigation, then returns a `FileUri` to the folder tree browser.
+
+For SSH config aliases, VertexWrite opens the TCP connection to `HostName` but checks host keys against the alias, `HostKeyAlias`, and resolved host candidates. This keeps strict known-hosts enforcement while matching common `ssh alias` workflows.
+
+Long-term rule: new remote support should enter through a backend implementation, not through scattered `Path` special cases in UI code.
+
+SFTP rules:
+
+- `sftp://user:password@host/...` is rejected; passwords are never stored in URIs.
+- Missing hosts and invalid ports are rejected during URI parsing.
+- Connections use SSH agent/key auth and load system `known_hosts`.
+- Missing host keys are rejected, not silently trusted.
+- Remote writes use a temporary file followed by OpenSSH `posix-rename@openssh.com`; if the server cannot do atomic rename, the write fails instead of falling back to an unsafe overwrite.
+
 ## Snapshots
 
 `_write_to` always writes a dated copy to `~/.local/state/vertexwrite/snapshots/<sha1(path)>-<stem>/<YYYYMMDD-HHMMSS>.md`. Latest 30 retained per document. Snapshots are not threaded or indexed.
@@ -145,6 +176,11 @@ vertexwrite.py
 │
 └─ gi + Gtk/WebKit2/GtkSource/Gdk/GLib/Gio/Pango ── Linux frontend
 
+vertexwrite_files.py
+│
+├─ pathlib + urllib.parse + tempfile + os/stat    ── backend-neutral file access
+└─ paramiko (optional runtime dependency)         ── SFTP backend
+
 vertexwrite_win.py
 │
 └─ PyQt6 + QtWebEngine + QWebChannel             ── Windows frontend
@@ -164,4 +200,3 @@ vertexwrite_win.py
 2. Wire into `render()` before `markdown.Markdown(...)` is called.
 3. Respect fenced code blocks (`FENCE_RE`).
 4. Add tests to any smoke test script and a worked example in `docs/wiki/Markdown-Features.md`.
-

@@ -1,12 +1,13 @@
 name: vertexwrite
 base: core24
-version: "0.6.9"
+version: "0.7.0"
 title: VertexWrite
-summary: Minimal modern markdown viewer and editor
+summary: Markdown editor with local and SSH/SFTP file browsing
 description: |
-  VertexWrite is a GTK3/WebKit markdown viewer and editor for Linux.
+  VertexWrite is a GTK3/WebKit markdown editor for Linux.
   It provides a clean preview mode, split live editing, command palette
-  navigation, folder search, and export helpers.
+  navigation, local and SSH/SFTP file browsing, folder search, and export
+  helpers.
 license: MIT
 website:
   - https://github.com/Canary-Builds/vertexwrite
@@ -35,6 +36,7 @@ apps:
       - desktop-legacy
       - opengl
       - gsettings
+      - ssh-keys
 
 parts:
   vertexwrite:
@@ -46,6 +48,7 @@ parts:
       - python3
       - python3-gi
       - python3-markdown
+      - python3-paramiko
       - python3-pygments
       - python3-html2text
       - gir1.2-gtk-3.0
@@ -55,6 +58,7 @@ parts:
       craftctl default
       install -Dm755 vertexwrite.py "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/vertexwrite.py"
       install -Dm644 vertexwrite_core.py "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/vertexwrite_core.py"
+      install -Dm644 vertexwrite_files.py "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/vertexwrite_files.py"
       install -Dm644 style.css "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/style.css"
       install -Dm644 CHANGELOG.md "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/CHANGELOG.md"
       install -Dm644 icon.png "$CRAFT_PART_INSTALL/usr/lib/vertexwrite/icon.png"

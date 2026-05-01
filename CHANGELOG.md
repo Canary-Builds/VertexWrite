@@ -6,6 +6,26 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-01
+
+### Added
+- Added a backend-neutral storage foundation with `FileUri`, `FileInfo`, `LocalBackend`, and backend registry primitives.
+- Added the first `SftpBackend` implementation using Paramiko, strict known-hosts checking, SSH agent/key auth, remote listing/reading, and temp-file plus `posix_rename` atomic writes.
+- Added a Linux sidebar SSH/SFTP connection control with status dot, remote folder browsing, remote document open, and remote save support.
+- Added SSH target shorthand in the remote dialog, including `ssh catherine`, bare `catherine`, `ssh -p 2200 -l user host ~/docs`, and `host:/path`.
+- Added manual Host/IP, User, Port, and Path fields to the SSH/SFTP connection dialog for users who prefer structured connection details.
+- Folder-tree file and folder buttons now stay remote-aware: when the active tree is SFTP, they browse the remote server instead of opening a local file chooser.
+- Added a remote file browser for SFTP folder-tree selection, with folder/file listing, Home, Up, Refresh, direct path entry, and double-click folder navigation.
+- Added hidden-dotfile toggles to the sidebar file browser and remote SFTP browser.
+- SSH config aliases now keep the alias as the host-key check name while connecting to `HostName`, matching normal `ssh alias` behavior more closely.
+
+### Changed
+- The sidebar folder tree is now a file browser that shows folders and files instead of recursively filtering to markdown files only.
+- The welcome screen now documents SSH/SFTP, the file-browser sidebar, and the remote connection action.
+- Linux recent documents now persist URI-shaped records while still reading legacy string-path recents.
+- Opening a recent document no longer retargets the folder tree; recents and folder tree state remain separate.
+- Debian, Snap, Flatpak, and Windows dependency metadata now include Paramiko for SFTP support.
+
 ## [0.6.9] — 2026-05-01
 
 ### Changed

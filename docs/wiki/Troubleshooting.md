@@ -94,7 +94,7 @@ The error renders inline in the preview. Mermaid is strict about syntax — see 
 
 ### Document sidebar folder tree is empty
 
-Open a saved file, then toggle the sidebar with `Ctrl+Shift+O`. The folder tree tracks the opened file's folder unless you choose a different folder, or choose a file and use that file's containing folder.
+Open a saved file, then toggle the sidebar with `Ctrl+Shift+O`. The folder tree tracks the opened file's folder unless you choose a different folder, or choose a file and use that file's containing folder. If a folder only contains dotfiles, enable the hidden-files toggle in the folder tree.
 
 ## File handling
 

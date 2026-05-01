@@ -22,6 +22,7 @@ override_dh_auto_install:
 	install -m755 debian/vertexwrite.launcher debian/vertexwrite/usr/bin/vertexwrite
 	install -m755 vertexwrite.py debian/vertexwrite/usr/lib/vertexwrite/vertexwrite.py
 	install -m644 vertexwrite_core.py debian/vertexwrite/usr/lib/vertexwrite/vertexwrite_core.py
+	install -m644 vertexwrite_files.py debian/vertexwrite/usr/lib/vertexwrite/vertexwrite_files.py
 	install -m644 style.css debian/vertexwrite/usr/lib/vertexwrite/style.css
 	install -m644 debian/vertexwrite.desktop debian/vertexwrite/usr/share/applications/vertexwrite.desktop
 	install -m644 debian/vertexwrite.metainfo.xml debian/vertexwrite/usr/share/metainfo/vertexwrite.metainfo.xml
@@ -36,6 +37,6 @@ override_dh_auto_install:
 
 
 override_dh_auto_test:
-	python3 -c "import py_compile; py_compile.compile('vertexwrite.py', cfile='debian/.vertexwrite.pyc', doraise=True)"
+	python3 -c "import py_compile; py_compile.compile('vertexwrite.py', cfile='debian/.vertexwrite.pyc', doraise=True); py_compile.compile('vertexwrite_files.py', cfile='debian/.vertexwrite_files.pyc', doraise=True)"
 	desktop-file-validate debian/vertexwrite.desktop
 	appstreamcli validate --no-net debian/vertexwrite.metainfo.xml

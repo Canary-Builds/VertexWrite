@@ -1,3 +1,14 @@
+vertexwrite (0.7.0+noble1) noble; urgency=medium
+
+  * Add backend-neutral file URI and SFTP storage support.
+  * Add SSH/SFTP sidebar connection controls and remote file browsing.
+  * Change the sidebar folder tree into a local/remote file browser with
+    hidden-dotfile toggles.
+  * Add Paramiko packaging dependencies for Debian, Snap, Flatpak, and
+    Windows metadata.
+
+ -- Mark <mark@canarybuilds.com>  Fri, 01 May 2026 20:11:17 +0800
+
 vertexwrite (0.6.9+noble3) noble; urgency=medium
 
   * PPA upload for noble

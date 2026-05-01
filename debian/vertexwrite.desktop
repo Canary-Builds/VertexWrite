@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
 Name=VertexWrite
-GenericName=Markdown Viewer
-Comment=Minimal, modern markdown viewer
+GenericName=Markdown Editor
+Comment=Markdown editor with local and SSH/SFTP file browsing
 Exec=/usr/bin/vertexwrite %F
 Icon=vertexwrite
 Terminal=false
 Categories=Utility;TextEditor;GTK;
 MimeType=text/markdown;text/x-markdown;
-Keywords=markdown;md;viewer;notes;
+Keywords=markdown;md;editor;notes;ssh;sftp;
 StartupNotify=true

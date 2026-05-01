@@ -1,6 +1,6 @@
 # VertexWrite Wiki
 
-Welcome. This is the living documentation for **VertexWrite** — a minimal, modern markdown viewer and editor for Linux and Windows.
+Welcome. This is the living documentation for **VertexWrite** — a markdown editor with local and SSH/SFTP file browsing for Linux and Windows.
 
 > The wiki pages here are mirrored into the GitHub Wiki. Edit either, but open a PR for substantive doc changes so the canonical copy in `docs/wiki/` stays in sync.
 
@@ -28,5 +28,4 @@ Welcome. This is the living documentation for **VertexWrite** — a minimal, mod
 - [ROADMAP](../../ROADMAP.md)
 - [CONTRIBUTING](../../CONTRIBUTING.md)
 - [LICENSE](../../LICENSE)
-
 

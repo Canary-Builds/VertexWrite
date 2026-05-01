@@ -21,7 +21,11 @@ Targeting the six features that were deliberately held back in 0.5 to keep the r
 - 🟡 **Bundled KaTeX + Mermaid** — ship minified copies under `vendor/` so math/diagrams work offline. Fall back to CDN when the bundle is missing.
 - 🟡 **Link integrity: URL reachability** — optional opt-in HEAD check for http(s) links alongside the existing relative-path check.
 
-## 0.7.0 — Writer ergonomics 🟡
+## 0.7.0 — Remote file browsing 🟢
+
+See [CHANGELOG.md](CHANGELOG.md). Adds the backend-neutral file URI layer, SFTP open/save support, SSH/SFTP sidebar connection controls, local/remote file-browser folder trees, and hidden-dotfile toggles.
+
+## 0.8.0 — Writer ergonomics 🟡
 
 - 🟡 **Table editor** — dialog with a spreadsheet-like `Gtk.Grid`: add/remove rows and columns, per-column alignment, live markdown sync. Invoked from the palette or from a right-click over a markdown table.
 - 🟡 **Grammar via LanguageTool** — local server mode (`languagetool-server.jar`) or hosted API; inline squiggles using `GtkTextTag`s and a margin mark.
@@ -29,13 +33,13 @@ Targeting the six features that were deliberately held back in 0.5 to keep the r
 - 🟡 **Word-count breakdown** — `Ctrl+P` → "Document stats": characters, words, reading time, sentence count, longest paragraph, prose/code ratio.
 - 🟡 **Snippets / templates** — user-defined templates under `~/.config/vertexwrite/templates/` surfaced in the palette (e.g. "Daily note", "Meeting").
 
-## 0.8.0 — Modality 🟡
+## 0.9.0 — Modality 🟡
 
 - 🟡 **Vim keybindings** — opt-in, normal/insert/visual/command modes. Implemented as a dedicated input handler that can be disabled entirely.
 - 🟡 **Command-mode `:` buffer** — reachable even without the vim layer (`Ctrl+Shift+;`) for power-user commands.
 - 🟣 **Multi-cursor** — `Ctrl+D` next-occurrence (reassigning current "toggle theme" shortcut), `Alt+Click` add cursor.
 
-## 0.9.0 — Notes graph 🟡
+## Future — Notes graph 🟡
 
 - 🟡 **Persistent backlinks index** — background scan of the folder, cached in `~/.local/state/vertexwrite/index/<folder-hash>.sqlite`. Makes backlink + orphan queries O(1).
 - 🟡 **Orphan / broken note report** — palette: "Show orphans", "Show broken references".
@@ -79,5 +83,4 @@ Targeting the six features that were deliberately held back in 0.5 to keep the r
 3. **Planned → Done**: ships in a tagged release; moves to [CHANGELOG.md](CHANGELOG.md).
 
 Version buckets are approximate — features may hop if they grow or shrink in scope.
-
 

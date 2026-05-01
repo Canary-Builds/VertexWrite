@@ -26,16 +26,16 @@ jobs:
           python-version: '3.12'
 
       - name: Install QA tools
-        run: python -m pip install --upgrade pip ruff pyflakes pytest markdown pygments
+        run: python -m pip install --upgrade pip ruff pyflakes pytest markdown pygments paramiko
 
       - name: Syntax check
-        run: python3 -m py_compile vertexwrite.py vertexwrite_core.py
+        run: python3 -m py_compile $(git ls-files '*.py')
 
       - name: Ruff
-        run: ruff check --no-cache --select F,W,B,UP,E701,E702 vertexwrite.py vertexwrite_core.py
+        run: ruff check --no-cache --select F,W,B,UP,E701,E702 $(git ls-files '*.py')
 
       - name: Pyflakes
-        run: pyflakes vertexwrite.py vertexwrite_core.py
+        run: pyflakes $(git ls-files '*.py')
 
       - name: Pytest
         run: pytest -q
@@ -68,11 +68,10 @@ jobs:
               "csv_to_markdown_table",
               "html_to_markdown",
               "CommandPalette",
-              "OutlineSidebar",
+              "DocumentSidebar",
               "Viewer",
           }
           missing = sorted(expected - defined)
           assert not missing, f"missing top-level symbols: {missing}"
           print("ast symbols ok")
           EOF
-

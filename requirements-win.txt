@@ -3,3 +3,4 @@ PyQt6-WebEngine>=6.6
 markdown
 pygments
 html2text
+paramiko>=3.5,<5
