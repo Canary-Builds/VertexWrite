@@ -68,7 +68,7 @@ from vertexwrite_core import (
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.4"
+__version__ = "0.6.5"
 
 APP_NAME = "VertexWrite"
 APP_SLUG = "vertexwrite"
@@ -563,13 +563,13 @@ class CommandPalette(QDialog):
 class DocumentSidebar(QWidget):
     jumpRequested = pyqtSignal(int)
     fileOpenRequested = pyqtSignal(str)
+    chooseFileRequested = pyqtSignal()
     chooseFolderRequested = pyqtSignal()
     rescanFolderRequested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumWidth(260)
-        self.setMaximumWidth(360)
+        self.setMinimumWidth(220)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 8, 6, 6)
         layout.setSpacing(6)
@@ -578,39 +578,59 @@ class DocumentSidebar(QWidget):
         title.setStyleSheet("color: #8b949e; font-weight: 600;")
         layout.addWidget(title)
 
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+
+        history_widget = QWidget()
+        history_layout = QVBoxLayout(history_widget)
+        history_layout.setContentsMargins(0, 0, 0, 0)
+        history_layout.setSpacing(6)
         history_title = QLabel("Recent documents")
         history_title.setStyleSheet("color: #8b949e;")
-        layout.addWidget(history_title)
+        history_layout.addWidget(history_title)
         self.history_list = QListWidget()
-        self.history_list.setMaximumHeight(190)
         self.history_list.itemClicked.connect(self._on_history_clicked)
-        layout.addWidget(self.history_list)
+        history_layout.addWidget(self.history_list)
+
+        folder_widget = QWidget()
+        folder_layout = QVBoxLayout(folder_widget)
+        folder_layout.setContentsMargins(0, 0, 0, 0)
+        folder_layout.setSpacing(6)
 
         folder_row = QHBoxLayout()
         folder_title = QLabel("Folder tree")
         folder_title.setStyleSheet("color: #8b949e;")
+        choose_file_btn = QPushButton("Choose File")
+        choose_file_btn.clicked.connect(self.chooseFileRequested.emit)
         choose_btn = QPushButton("Choose Folder")
         choose_btn.clicked.connect(self.chooseFolderRequested.emit)
         rescan_btn = QPushButton("Rescan")
         rescan_btn.clicked.connect(self.rescanFolderRequested.emit)
         folder_row.addWidget(folder_title)
         folder_row.addStretch()
+        folder_row.addWidget(choose_file_btn)
         folder_row.addWidget(choose_btn)
         folder_row.addWidget(rescan_btn)
-        layout.addLayout(folder_row)
+        folder_layout.addLayout(folder_row)
 
         self.md_folder_label = QLabel("No folder selected")
         self.md_folder_label.setStyleSheet("color: #8b949e; padding: 2px 8px;")
-        layout.addWidget(self.md_folder_label)
+        folder_layout.addWidget(self.md_folder_label)
 
         self.md_status_label = QLabel("")
         self.md_status_label.setStyleSheet("color: #8b949e; padding: 2px 8px;")
-        layout.addWidget(self.md_status_label)
+        folder_layout.addWidget(self.md_status_label)
 
         self.folder_tree = QTreeWidget()
         self.folder_tree.setHeaderHidden(True)
         self.folder_tree.itemClicked.connect(self._on_folder_tree_clicked)
-        layout.addWidget(self.folder_tree, 1)
+        folder_layout.addWidget(self.folder_tree, 1)
+
+        self.splitter.addWidget(history_widget)
+        self.splitter.addWidget(folder_widget)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setSizes([220, 520])
+        layout.addWidget(self.splitter, 1)
 
     def update_outline(self, headings: list[dict]):
         # Kept for existing call sites; heading jumps remain in the palette.
@@ -923,6 +943,8 @@ class Viewer(QMainWindow):
         self.sidebar.jumpRequested.connect(self._goto_line)
         self.sidebar.fileOpenRequested.connect(
             lambda p: self._open_sidebar_file(Path(p)))
+        self.sidebar.chooseFileRequested.connect(
+            self._choose_markdown_file)
         self.sidebar.chooseFolderRequested.connect(
             self._choose_markdown_folder)
         self.sidebar.rescanFolderRequested.connect(
@@ -2380,6 +2402,25 @@ class Viewer(QMainWindow):
                 None, [], False, "Choose a folder to scan markdown files.")
             return
         self.markdown_root = root
+        self._scan_markdown_folder()
+
+    def _choose_markdown_file(self):
+        start = (
+            str(self.markdown_root)
+            if self.markdown_root
+            else str(self.current_path.parent) if self.current_path else ""
+        )
+        chosen, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose markdown file",
+            start,
+            "Markdown (*.md *.markdown *.mdown *.mkd *.txt);;All files (*)",
+        )
+        if not chosen:
+            return
+        selected = Path(chosen).resolve()
+        self.markdown_root = selected if selected.is_dir() else selected.parent
+        save_markdown_root(self.markdown_root)
         self._scan_markdown_folder()
 
     def _choose_markdown_folder(self):

@@ -48,9 +48,10 @@ VertexWrite/
 ├── vertexwrite_win.py     # Windows Qt frontend
 ├── vertexwrite_core.py    # shared renderer/helpers
 ├── style.css           # preview theme
-├── icon.png            # app icon (square 512×512)
-├── icon-final.png      # master source icon
-├── icon-{16..256}.png  # hicolor sizes generated from master
+├── vertexwrite-logo.png # final logo source
+├── icon-final.png      # copy of the final logo source
+├── icon.png            # app icon generated from the logo
+├── icon-{16..256}.png  # hicolor sizes generated from the logo
 ├── vertexwrite.desktop    # desktop entry template
 ├── install.sh          # user-local installer
 ├── build_win.ps1       # Windows build helper
@@ -147,4 +148,3 @@ If you added a feature, run through:
 4. Tag: `git tag -a vX.Y.Z -m 'vX.Y.Z — summary'`.
 5. Push: `git push origin main --tags`.
 6. Tag pushes trigger the release workflows, which attach the Windows installer plus `.zip` and `.tar.gz` source archives to the GitHub Release.
-

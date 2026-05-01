@@ -48,7 +48,7 @@ from vertexwrite_core import (  # noqa: E402
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.6.4"
+__version__ = "0.6.5"
 
 APP_ID = "com.canarybuilds.VertexWrite"
 APP_NAME = "VertexWrite"
@@ -412,13 +412,15 @@ class DocumentSidebar(Gtk.Box):
             on_jump,
             on_open_history,
             on_open_markdown,
+            on_choose_markdown_file,
             on_choose_markdown_folder,
             on_rescan_markdown_folder):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.set_size_request(280, -1)
+        self.set_size_request(260, -1)
         self.on_jump = on_jump
         self.on_open_history = on_open_history
         self.on_open_markdown = on_open_markdown
+        self.on_choose_markdown_file = on_choose_markdown_file
         self.on_choose_markdown_folder = on_choose_markdown_folder
         self.on_rescan_markdown_folder = on_rescan_markdown_folder
 
@@ -430,19 +432,21 @@ class DocumentSidebar(Gtk.Box):
         title.get_style_context().add_class("dim-label")
         self.pack_start(title, False, False, 0)
 
+        self.split_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        self.split_paned.set_wide_handle(True)
+
+        history_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.history_listbox = Gtk.ListBox()
         self.history_listbox.set_activate_on_single_click(True)
         self.history_listbox.connect("row-activated", self._on_history_row)
         history_scroller = Gtk.ScrolledWindow()
         history_scroller.set_hexpand(False)
-        history_scroller.set_vexpand(False)
-        history_scroller.set_size_request(-1, 190)
+        history_scroller.set_vexpand(True)
         history_scroller.add(self.history_listbox)
-        self.pack_start(self._section_label("Recent documents"), False, False, 0)
-        self.pack_start(history_scroller, False, True, 0)
-        self.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-                        False, False, 0)
+        history_box.pack_start(self._section_label("Recent documents"), False, False, 0)
+        history_box.pack_start(history_scroller, True, True, 0)
 
+        folder_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         folder_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         folder_header.set_margin_top(8)
         folder_header.set_margin_bottom(4)
@@ -451,6 +455,11 @@ class DocumentSidebar(Gtk.Box):
         folder_label = Gtk.Label(label="Folder tree", xalign=0)
         folder_label.get_style_context().add_class("dim-label")
         folder_header.pack_start(folder_label, True, True, 0)
+        choose_file_btn = _icon_button(
+            "document-open-symbolic",
+            "Choose a markdown file and show its folder",
+            self.on_choose_markdown_file,
+        )
         choose_btn = _icon_button(
             "folder-open-symbolic",
             "Choose markdown folder",
@@ -461,6 +470,7 @@ class DocumentSidebar(Gtk.Box):
             "Rescan selected folder",
             self.on_rescan_markdown_folder,
         )
+        folder_header.pack_start(choose_file_btn, False, False, 0)
         folder_header.pack_start(choose_btn, False, False, 0)
         folder_header.pack_start(rescan_btn, False, False, 0)
 
@@ -495,10 +505,15 @@ class DocumentSidebar(Gtk.Box):
         folder_scroller.set_vexpand(True)
         folder_scroller.add(self.folder_tree)
 
-        self.pack_start(folder_header, False, False, 0)
-        self.pack_start(self.markdown_folder_label, False, False, 0)
-        self.pack_start(self.markdown_status_label, False, False, 0)
-        self.pack_start(folder_scroller, True, True, 0)
+        folder_box.pack_start(folder_header, False, False, 0)
+        folder_box.pack_start(self.markdown_folder_label, False, False, 0)
+        folder_box.pack_start(self.markdown_status_label, False, False, 0)
+        folder_box.pack_start(folder_scroller, True, True, 0)
+
+        self.split_paned.pack1(history_box, resize=True, shrink=False)
+        self.split_paned.pack2(folder_box, resize=True, shrink=False)
+        self.split_paned.set_position(220)
+        self.pack_start(self.split_paned, True, True, 0)
 
         self.update_history([])
         self.set_markdown_results(None, [], False, "Choose a folder to scan markdown files.")
@@ -623,6 +638,7 @@ class Viewer(Gtk.ApplicationWindow):
         self._headings_cache: list[dict] = []
         self.outline_visible = False
         self._suppress_sidebar_toggle = False
+        self._sidebar_width = 300
         self.typewriter_on = False
         self._history: list[tuple[Path, int]] = []
         self._history_idx: int = -1
@@ -986,6 +1002,7 @@ class Viewer(Gtk.ApplicationWindow):
             on_jump=self._goto_line,
             on_open_history=self._open_history_file,
             on_open_markdown=self._open_markdown_file,
+            on_choose_markdown_file=self._choose_markdown_file,
             on_choose_markdown_folder=self._choose_markdown_folder,
             on_rescan_markdown_folder=self._scan_markdown_folder,
         )
@@ -1015,6 +1032,22 @@ class Viewer(Gtk.ApplicationWindow):
             if self.current_path:
                 self._ensure_sidebar_folder_for_file(self.current_path)
             self.outline.update(self._headings_cache)
+            GLib.idle_add(self._restore_sidebar_paned_position)
+        elif hasattr(self, "middle_paned"):
+            pos = self.middle_paned.get_position()
+            if pos > 80:
+                self._sidebar_width = pos
+            self.middle_paned.set_position(0)
+
+    def _restore_sidebar_paned_position(self):
+        if hasattr(self, "middle_paned"):
+            width = getattr(self, "_sidebar_width", 300)
+            self.middle_paned.set_position(max(220, width))
+        return False
+
+    def _on_sidebar_paned_position_changed(self, paned, _pspec):
+        if self.outline_visible and paned.get_position() > 80:
+            self._sidebar_width = paned.get_position()
 
     def _ensure_sidebar_folder_for_file(
             self,
@@ -1078,6 +1111,41 @@ class Viewer(Gtk.ApplicationWindow):
             )
             return
         self.markdown_root = root
+        self._scan_markdown_folder()
+
+    def _choose_markdown_file(self, *_):
+        d = Gtk.FileChooserDialog(
+            title="Choose markdown file",
+            parent=self,
+            action=Gtk.FileChooserAction.OPEN,
+        )
+        d.add_buttons(
+            "Cancel",
+            Gtk.ResponseType.CANCEL,
+            "Select",
+            Gtk.ResponseType.OK,
+        )
+        md = Gtk.FileFilter()
+        md.set_name("Markdown")
+        for p in ("*.md", "*.markdown", "*.mdown", "*.mkd", "*.txt"):
+            md.add_pattern(p)
+        d.add_filter(md)
+        af = Gtk.FileFilter()
+        af.set_name("All files")
+        af.add_pattern("*")
+        d.add_filter(af)
+        if self.markdown_root and self.markdown_root.is_dir():
+            d.set_current_folder(str(self.markdown_root))
+        elif self.current_path:
+            d.set_current_folder(str(self.current_path.parent))
+        r = d.run()
+        chosen = d.get_filename() if r == Gtk.ResponseType.OK else None
+        d.destroy()
+        if not chosen:
+            return
+        selected = Path(chosen).resolve()
+        self.markdown_root = selected if selected.is_dir() else selected.parent
+        save_markdown_root(self.markdown_root)
         self._scan_markdown_folder()
 
     def _choose_markdown_folder(self, *_):
@@ -1160,11 +1228,17 @@ class Viewer(Gtk.ApplicationWindow):
         self.root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.root.pack_start(self.edit_toolbar_revealer, False, False, 0)
         self.root.pack_start(self.find_bar, False, False, 0)
-        middle = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        middle.pack_start(self.outline_revealer, False, False, 0)
+        self.middle_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self.middle_paned.set_wide_handle(True)
+        self.middle_paned.connect(
+            "notify::position",
+            self._on_sidebar_paned_position_changed,
+        )
+        self.middle_paned.pack1(self.outline_revealer, resize=False, shrink=False)
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        middle.pack_start(self.content_box, True, True, 0)
-        self.root.pack_start(middle, True, True, 0)
+        self.middle_paned.pack2(self.content_box, resize=True, shrink=False)
+        self.middle_paned.set_position(0)
+        self.root.pack_start(self.middle_paned, True, True, 0)
         self.add(self.root)
 
     def _refresh_content(self):

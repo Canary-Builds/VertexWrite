@@ -4,7 +4,7 @@
 > GTK3 + WebKit on Linux. PyQt6 + QtWebEngine on Windows.
 > No Electron, no tray daemon, no account. Starts in under a second.
 
-[![version](https://img.shields.io/badge/version-0.6.4-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.6.5-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)](#install)
 [![snap](https://img.shields.io/badge/Snapcraft-vertexwrite-E95420?logo=snapcraft&logoColor=white)](https://snapcraft.io/vertexwrite)
@@ -12,7 +12,7 @@
 [![flathub](https://img.shields.io/badge/Flathub-com.canarybuilds.VertexWrite-000000?logo=flathub&logoColor=white)](https://flathub.org/apps/com.canarybuilds.VertexWrite)
 
 <p align="center">
-  <img src="icon.png" width="128" alt="VertexWrite logo">
+  <img src="vertexwrite-logo.png" width="128" alt="VertexWrite logo">
 </p>
 
 ## Screenshots
@@ -66,7 +66,7 @@ The chrome stays minimal: compact header buttons, one toolbar that only appears 
 ### Navigation
 - **Command palette** (`Ctrl+P`) — fuzzy jump to actions, headings, or files in the folder
 - **Folder full-text search** (`Ctrl+Shift+F`) — recursive `.md`, context snippets
-- **Document sidebar** (`Ctrl+Shift+O`) — recent documents on top, current folder tree below
+- **Document sidebar** (`Ctrl+Shift+O`) — resizable left pane with recent documents on top and the current folder tree below; choose either a folder or a file to set the tree root
 - **Back / forward** (`Alt+←` / `Alt+→`) — history of opened files + cursor lines
 
 ### Palette actions (Ctrl+P)
@@ -216,9 +216,10 @@ VertexWrite/
 ├── vertexwrite_win.py     # Windows PyQt6/QtWebEngine frontend
 ├── vertexwrite_core.py    # shared markdown/rendering helpers
 ├── style.css           # preview theme (light/dark/print)
-├── icon-final.png      # master icon (1536×1024 source)
-├── icon.png            # 512×512 square (installed via install.sh)
-├── icon-{16..256}.png  # hicolor sizes
+├── vertexwrite-logo.png # final logo source
+├── icon-final.png      # copy of the final logo source
+├── icon.png            # 512×512 square generated from the logo
+├── icon-{16..256}.png  # hicolor sizes generated from the logo
 ├── vertexwrite.desktop    # desktop entry template
 ├── install.sh          # user-local installer
 ├── build_win.ps1       # Windows bundle + installer helper
@@ -255,4 +256,3 @@ MIT — see [LICENSE](LICENSE).
 - [python-markdown](https://python-markdown.github.io/) + [Pygments](https://pygments.org/) for rendering
 - [GtkSourceView](https://wiki.gnome.org/Projects/GtkSourceView) for the editor
 - [KaTeX](https://katex.org/) and [Mermaid](https://mermaid.js.org/) for math and diagrams
-

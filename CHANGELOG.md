@@ -6,6 +6,15 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.5] — 2026-05-01
+
+### Added
+- **Resizable document sidebar.** The left sidebar can now be resized against the editor/preview, and the recent-documents/folder-tree split can be resized inside the sidebar.
+- **File-based folder tree selection.** The sidebar can now choose a markdown file and then display the folder containing that file.
+
+### Changed
+- The final VertexWrite logo is now sourced from `vertexwrite-logo.png`, with Linux hicolor icons and the Windows `.ico` regenerated from that logo.
+
 ### Fixed
 - Linux startup now defaults `WEBKIT_DISABLE_DMABUF_RENDERER=1` before WebKitGTK loads, avoiding a GBM/EGL abort seen on some NVIDIA driver stacks.
 

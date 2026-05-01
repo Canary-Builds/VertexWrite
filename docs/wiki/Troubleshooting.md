@@ -94,7 +94,7 @@ The error renders inline in the preview. Mermaid is strict about syntax — see 
 
 ### Document sidebar folder tree is empty
 
-Open a saved file, then toggle the sidebar with `Ctrl+Shift+O`. The folder tree tracks the opened file's folder unless you choose a different folder from the sidebar.
+Open a saved file, then toggle the sidebar with `Ctrl+Shift+O`. The folder tree tracks the opened file's folder unless you choose a different folder, or choose a file and use that file's containing folder.
 
 ## File handling
 
@@ -135,4 +135,3 @@ WebKit is the biggest consumer. Typical resident set is 150–300 MB. If it ball
 
 - Usually GTK theme loading. Check `GTK_DEBUG=interactive vertexwrite` — if GTK itself is slow you'll see it spinning on theme parsing.
 - Antivirus or file-indexer scanning your home on first read — wait for it to finish, or exclude the folder.
-
