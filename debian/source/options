@@ -1,4 +1,5 @@
 tar-ignore=.git
+tar-ignore=.flatpak-builder
 tar-ignore=.craft
 tar-ignore=parts
 tar-ignore=prime
