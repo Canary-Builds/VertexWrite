@@ -13,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import argparse
 from pathlib import Path
 
@@ -44,8 +45,8 @@ from PyQt6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QDockWidget, QFileDialog,
     QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
-    QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QSplitter,
-    QStatusBar, QToolBar, QToolButton, QTreeWidget,
+    QPlainTextEdit, QProgressDialog, QPushButton, QSizePolicy, QSpinBox,
+    QSplitter, QStatusBar, QToolBar, QToolButton, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -66,7 +67,16 @@ from vertexwrite_core import (
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.7.5"
+from vertexwrite_files import (
+    FileUri,
+    TransferCancelled,
+    TransferProgress,
+    download_to_local,
+    parse_remote_target,
+    upload_to_remote,
+)
+
+__version__ = "0.8.0"
 
 APP_NAME = "VertexWrite"
 APP_SLUG = "vertexwrite"
@@ -423,6 +433,24 @@ class CodeEditor(QPlainTextEdit):
 
     def current_line_number(self) -> int:
         return self.textCursor().blockNumber()
+
+
+def _human_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+class _TransferSignals(QObject):
+    """Marshals worker-thread transfer events back to the GUI thread."""
+
+    progress = pyqtSignal(object)
+    done = pyqtSignal(object, object)
 
 
 # ---------------------------------------------------------------------------
@@ -1196,6 +1224,14 @@ class Viewer(QMainWindow):
         view_menu.addSeparator()
         add_menu_action(view_menu, "Command Palette…", self._open_palette, "Ctrl+P")
 
+        remote_menu = mb.addMenu("&Remote")
+        add_menu_action(
+            remote_menu, "Upload File/Folder to SSH/SFTP…",
+            self._on_upload_to_remote, "Ctrl+Shift+U")
+        add_menu_action(
+            remote_menu, "Download File/Folder from SSH/SFTP…",
+            self._on_download_from_remote, "Ctrl+Shift+D")
+
         help_menu = mb.addMenu("&Help")
         add_menu_action(help_menu, "Keyboard Shortcuts", self._show_shortcuts)
         add_menu_action(help_menu, f"What's New in {__version__}", self._show_whats_new)
@@ -1348,6 +1384,145 @@ class Viewer(QMainWindow):
         md_text = f"# Error\n\n```\n{msg}\n```\n"
         self._load_html(render(md_text, self.theme, "Error", APP_DIR),
                         APP_DIR.as_uri() + "/")
+
+    def _render_info(self, title: str, message: str):
+        md_text = f"# {title}\n\n{message}\n"
+        self._load_html(render(md_text, self.theme, title, APP_DIR),
+                        APP_DIR.as_uri() + "/")
+
+    # ---- SSH/SFTP upload & download ----------------------------------------
+
+    def _default_local_dir(self) -> str:
+        if self.markdown_root:
+            return str(self.markdown_root)
+        if self.current_path:
+            return str(self.current_path.parent)
+        return str(Path.home())
+
+    def _on_upload_to_remote(self):
+        box = QMessageBox(self)
+        box.setWindowTitle("Upload to SSH/SFTP")
+        box.setText("Upload a single file or an entire folder to a remote "
+                    "server over SSH/SFTP?")
+        file_btn = box.addButton("File…", QMessageBox.ButtonRole.AcceptRole)
+        folder_btn = box.addButton("Folder…", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is file_btn:
+            source, _ = QFileDialog.getOpenFileName(
+                self, "Choose file to upload", self._default_local_dir())
+        elif clicked is folder_btn:
+            source = QFileDialog.getExistingDirectory(
+                self, "Choose folder to upload", self._default_local_dir())
+        else:
+            return
+        if not source:
+            return
+        dest_text, ok = QInputDialog.getText(
+            self, "Remote destination",
+            "Remote destination folder (SFTP URI or ssh host alias):")
+        if not ok or not dest_text.strip():
+            return
+        try:
+            remote_dir = parse_remote_target(dest_text.strip())
+        except ValueError as exc:
+            self._render_error(f"Invalid remote destination:\n{exc}")
+            return
+        local = Path(source)
+        self._run_transfer(
+            f"Uploading {local.name} → {remote_dir.authority}",
+            lambda progress, should_cancel: upload_to_remote(
+                local, remote_dir,
+                progress=progress, should_cancel=should_cancel),
+            success=f"Uploaded {local.name} to {remote_dir.display()}")
+
+    def _on_download_from_remote(self):
+        src_text, ok = QInputDialog.getText(
+            self, "Download from SSH/SFTP",
+            "Remote source (SFTP URI or ssh host alias + path):")
+        if not ok or not src_text.strip():
+            return
+        try:
+            remote_uri = parse_remote_target(src_text.strip())
+        except ValueError as exc:
+            self._render_error(f"Invalid remote source:\n{exc}")
+            return
+        if remote_uri.name in ("", ".", "/"):
+            self._render_error(
+                "Choose a specific remote file or folder to download "
+                "(not the server root).")
+            return
+        dest_dir = QFileDialog.getExistingDirectory(
+            self, "Save into folder", self._default_local_dir())
+        if not dest_dir:
+            return
+        local_dir = Path(dest_dir)
+        self._run_transfer(
+            f"Downloading {remote_uri.name} → {local_dir.name}",
+            lambda progress, should_cancel: download_to_local(
+                remote_uri, local_dir,
+                progress=progress, should_cancel=should_cancel),
+            success=f"Downloaded {remote_uri.name} to {local_dir}")
+
+    def _run_transfer(self, title, fn, *, success):
+        """Run a transfer on a worker thread behind a QProgressDialog."""
+        signals = _TransferSignals()
+        dialog = QProgressDialog(title, "Cancel", 0, 100, self)
+        dialog.setWindowTitle("SSH/SFTP transfer")
+        dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        dialog.setAutoClose(False)
+        dialog.setAutoReset(False)
+        dialog.setMinimumDuration(0)
+        dialog.setValue(0)
+        state = {"cancel": False, "done": False}
+        dialog.canceled.connect(lambda: state.update(cancel=True))
+
+        def should_cancel():
+            return state["cancel"]
+
+        def on_progress(snapshot: TransferProgress):
+            if state["done"]:
+                return
+            if snapshot.total_bytes > 0:
+                dialog.setValue(int(min(
+                    100, snapshot.done_bytes * 100 / snapshot.total_bytes)))
+            label = title
+            if snapshot.total_files:
+                label = (f"{title}\n{snapshot.done_files}/"
+                         f"{snapshot.total_files} files — "
+                         f"{snapshot.current_name}")
+            dialog.setLabelText(label)
+
+        def on_done(result, error):
+            state["done"] = True
+            dialog.close()
+            if isinstance(error, TransferCancelled):
+                self.status_path_label.setText("Transfer cancelled")
+                return
+            if error is not None:
+                self._render_error(f"Transfer failed:\n{error}")
+                return
+            summary = success
+            if result is not None:
+                summary = (
+                    f"{success}\n\n"
+                    f"{result.files} file(s), {result.directories} folder(s), "
+                    f"{_human_size(result.bytes)}.")
+            self._render_info("Transfer complete", summary)
+
+        signals.progress.connect(on_progress)
+        signals.done.connect(on_done)
+
+        def worker():
+            try:
+                res = fn(signals.progress.emit, should_cancel)
+                signals.done.emit(res, None)
+            except Exception as exc:  # noqa: BLE001 - reported via dialog
+                signals.done.emit(None, exc)
+
+        threading.Thread(target=worker, daemon=True).start()
+        dialog.show()
 
     def _refresh_preview(self):
         if self.current_path and self.current_path.exists() and self.mode == "preview":
@@ -1746,6 +1921,8 @@ class Viewer(QMainWindow):
             ("Split view (live preview)", "", "action:split"),
             ("Preview only", "", "action:preview_only"),
             ("Toggle sidebar", "Ctrl+Shift+O", "action:sidebar"),
+            ("Upload file/folder to SSH/SFTP…", "Ctrl+Shift+U", "action:upload"),
+            ("Download file/folder from SSH/SFTP…", "Ctrl+Shift+D", "action:download"),
             ("Toggle typewriter mode", "Ctrl+Shift+T", "action:typewriter"),
             ("Reload", "Ctrl+R", "action:reload"),
             ("Toggle theme", "Ctrl+D", "action:theme"),
@@ -1861,6 +2038,8 @@ class Viewer(QMainWindow):
                 "folder_search": self._open_folder_search,
                 "outline": self._toggle_outline,
                 "sidebar": self._toggle_outline,
+                "upload": self._on_upload_to_remote,
+                "download": self._on_download_from_remote,
                 "typewriter": self._toggle_typewriter,
                 "open_url": self._open_from_url_prompt,
                 "insert_table": self._insert_table_prompt,
@@ -2547,6 +2726,10 @@ class Viewer(QMainWindow):
                 ("Ctrl+Shift+S", "Save As"),
                 ("Ctrl+R", "Reload"),
                 ("Ctrl+Q", "Quit"),
+            ]),
+            ("Remote (SSH/SFTP)", [
+                ("Ctrl+Shift+U", "Upload file/folder to remote"),
+                ("Ctrl+Shift+D", "Download file/folder from remote"),
             ]),
             ("View", [
                 ("Ctrl+E", "Toggle edit mode"),

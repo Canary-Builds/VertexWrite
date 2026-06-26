@@ -21,8 +21,12 @@ from vertexwrite_files import (
     FileInfo,
     FileUri,
     StorageError,
+    TransferCancelled,
+    TransferProgress,
     backend_for,
+    download_to_local,
     parse_remote_target,
+    upload_to_remote,
 )
 
 # WebKitGTK can abort during startup on some NVIDIA/Wayland GBM stacks unless
@@ -56,7 +60,7 @@ from vertexwrite_core import (  # noqa: E402
     write_snapshot as _write_snapshot,
 )
 
-__version__ = "0.7.5"
+__version__ = "0.8.0"
 
 APP_ID = "com.canarybuilds.VertexWrite"
 APP_NAME = "VertexWrite"
@@ -346,6 +350,17 @@ def _shrink_label(
     label.set_size_request(1, -1)
     label.set_max_width_chars(1)
     return label
+
+
+def _human_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size} B"
 
 
 def _menu_button(icon_name, tooltip, items):
@@ -1427,6 +1442,10 @@ class Viewer(Gtk.ApplicationWindow):
 
     def _build_menu(self):
         return _menu_button("open-menu-symbolic", "Menu", [
+            ("Connect SSH/SFTP…", self._open_remote_from_welcome),
+            ("Upload file/folder to SSH/SFTP…", self._on_upload_to_remote),
+            ("Download file/folder from SSH/SFTP…", self._on_download_from_remote),
+            None,
             ("Keyboard Shortcuts", self._show_shortcuts),
             (f"What’s New in {__version__}", self._show_whats_new),
             None,
@@ -1902,6 +1921,279 @@ class Viewer(Gtk.ApplicationWindow):
         self.outline.set_remote_status("connecting", "Connecting", uri.authority)
         self._scan_markdown_folder()
 
+    # ---- SSH/SFTP upload & download ----------------------------------------
+
+    def _default_remote_target(self) -> str:
+        if self.markdown_root_uri and self.markdown_root_uri.is_remote:
+            return str(self.markdown_root_uri)
+        return ""
+
+    def _default_local_dir(self) -> str:
+        if self.markdown_root_uri and self.markdown_root_uri.is_local:
+            return self.markdown_root_uri.path
+        if self.current_path:
+            return str(self.current_path.parent)
+        return str(Path.home())
+
+    def _on_upload_to_remote(self, *_):
+        self._set_sidebar_visible(True)
+        dialog = Gtk.Dialog(title="Upload to SSH/SFTP", parent=self, flags=0)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                           "Upload", Gtk.ResponseType.OK)
+        dialog.set_default_size(560, 240)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        box = dialog.get_content_area()
+        box.set_spacing(8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(12)
+
+        intro = Gtk.Label(
+            label=(
+                "Copy a local file or folder to a remote server over SSH/SFTP. "
+                "Authentication uses your SSH agent/keys and known_hosts."
+            ),
+            xalign=0,
+        )
+        intro.set_line_wrap(True)
+        box.pack_start(intro, False, False, 0)
+
+        source_holder = {"path": None}
+        source_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        source_label = Gtk.Label(label="No file or folder chosen", xalign=0)
+        source_label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        source_label.set_hexpand(True)
+        choose_file = Gtk.Button(label="Choose File…")
+        choose_folder = Gtk.Button(label="Choose Folder…")
+
+        def pick(action):
+            chooser = Gtk.FileChooserDialog(
+                title="Select source", transient_for=dialog, action=action)
+            chooser.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                                "Select", Gtk.ResponseType.OK)
+            local_dir = self._default_local_dir()
+            if local_dir:
+                chooser.set_current_folder(local_dir)
+            if chooser.run() == Gtk.ResponseType.OK:
+                chosen = chooser.get_filename()
+                source_holder["path"] = chosen
+                source_label.set_text(chosen)
+            chooser.destroy()
+
+        choose_file.connect(
+            "clicked", lambda *_: pick(Gtk.FileChooserAction.OPEN))
+        choose_folder.connect(
+            "clicked", lambda *_: pick(Gtk.FileChooserAction.SELECT_FOLDER))
+        source_row.pack_start(source_label, True, True, 0)
+        source_row.pack_start(choose_file, False, False, 0)
+        source_row.pack_start(choose_folder, False, False, 0)
+        box.pack_start(source_row, False, False, 0)
+
+        dest_label = Gtk.Label(
+            label="Remote destination folder (SFTP URI or ssh host alias):",
+            xalign=0)
+        box.pack_start(dest_label, False, False, 0)
+        dest_entry = Gtk.Entry()
+        dest_entry.set_placeholder_text("sftp://user@host:22/home/user/docs")
+        dest_entry.set_text(self._default_remote_target())
+        dest_entry.set_activates_default(True)
+        box.pack_start(dest_entry, False, False, 0)
+
+        dialog.show_all()
+        if dialog.run() != Gtk.ResponseType.OK:
+            dialog.destroy()
+            return
+        source = source_holder["path"]
+        dest_text = dest_entry.get_text().strip()
+        dialog.destroy()
+        if not source:
+            self._render_error("Choose a file or folder to upload first.")
+            return
+        try:
+            remote_dir = parse_remote_target(dest_text)
+        except ValueError as exc:
+            self._render_error(f"Invalid remote destination:\n{exc}")
+            return
+
+        local = Path(source)
+        self._run_transfer(
+            f"Uploading {local.name} → {remote_dir.authority}",
+            lambda progress, should_cancel: upload_to_remote(
+                local, remote_dir,
+                progress=progress, should_cancel=should_cancel),
+            success=f"Uploaded {local.name} to {remote_dir.display()}",
+            authority=remote_dir.authority)
+
+    def _on_download_from_remote(self, *_):
+        self._set_sidebar_visible(True)
+        dialog = Gtk.Dialog(title="Download from SSH/SFTP", parent=self, flags=0)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                           "Download", Gtk.ResponseType.OK)
+        dialog.set_default_size(560, 240)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        box = dialog.get_content_area()
+        box.set_spacing(8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(12)
+
+        intro = Gtk.Label(
+            label=(
+                "Copy a remote file or folder from a server to this computer "
+                "over SSH/SFTP."
+            ),
+            xalign=0,
+        )
+        intro.set_line_wrap(True)
+        box.pack_start(intro, False, False, 0)
+
+        src_label = Gtk.Label(
+            label="Remote source (SFTP URI or ssh host alias + path):",
+            xalign=0)
+        box.pack_start(src_label, False, False, 0)
+        src_entry = Gtk.Entry()
+        src_entry.set_placeholder_text("sftp://user@host:22/home/user/docs")
+        src_entry.set_text(self._default_remote_target())
+        src_entry.set_activates_default(True)
+        box.pack_start(src_entry, False, False, 0)
+
+        dest_holder = {"path": self._default_local_dir()}
+        dest_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        dest_value = Gtk.Label(label=dest_holder["path"], xalign=0)
+        dest_value.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        dest_value.set_hexpand(True)
+        choose_dest = Gtk.Button(label="Choose Folder…")
+
+        def pick_dest(*_):
+            chooser = Gtk.FileChooserDialog(
+                title="Save into folder", transient_for=dialog,
+                action=Gtk.FileChooserAction.SELECT_FOLDER)
+            chooser.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                                "Select", Gtk.ResponseType.OK)
+            if dest_holder["path"]:
+                chooser.set_current_folder(dest_holder["path"])
+            if chooser.run() == Gtk.ResponseType.OK:
+                dest_holder["path"] = chooser.get_filename()
+                dest_value.set_text(dest_holder["path"])
+            chooser.destroy()
+
+        choose_dest.connect("clicked", pick_dest)
+        dest_caption = Gtk.Label(label="Save into:", xalign=0)
+        box.pack_start(dest_caption, False, False, 0)
+        dest_row.pack_start(dest_value, True, True, 0)
+        dest_row.pack_start(choose_dest, False, False, 0)
+        box.pack_start(dest_row, False, False, 0)
+
+        dialog.show_all()
+        if dialog.run() != Gtk.ResponseType.OK:
+            dialog.destroy()
+            return
+        src_text = src_entry.get_text().strip()
+        dest_dir = dest_holder["path"]
+        dialog.destroy()
+        if not dest_dir:
+            self._render_error("Choose a local folder to download into first.")
+            return
+        try:
+            remote_uri = parse_remote_target(src_text)
+        except ValueError as exc:
+            self._render_error(f"Invalid remote source:\n{exc}")
+            return
+        if remote_uri.name in ("", ".", "/"):
+            self._render_error(
+                "Choose a specific remote file or folder to download "
+                "(not the server root).")
+            return
+
+        local_dir = Path(dest_dir)
+        self._run_transfer(
+            f"Downloading {remote_uri.name} → {local_dir.name}",
+            lambda progress, should_cancel: download_to_local(
+                remote_uri, local_dir,
+                progress=progress, should_cancel=should_cancel),
+            success=f"Downloaded {remote_uri.name} to {local_dir}",
+            authority=remote_uri.authority)
+
+    def _run_transfer(self, title, fn, *, success, authority):
+        """Run a transfer in a worker thread behind a progress dialog."""
+        progress_dialog = Gtk.Dialog(title=title, parent=self, flags=0)
+        progress_dialog.set_default_size(440, 130)
+        cancel_button = progress_dialog.add_button(
+            "Cancel", Gtk.ResponseType.CANCEL)
+        area = progress_dialog.get_content_area()
+        area.set_spacing(8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(area, f"set_margin_{side}")(12)
+        heading = Gtk.Label(label=title, xalign=0)
+        heading.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        area.pack_start(heading, False, False, 0)
+        bar = Gtk.ProgressBar()
+        bar.set_show_text(True)
+        bar.set_text("Preparing…")
+        area.pack_start(bar, False, False, 0)
+        detail = Gtk.Label(label="", xalign=0)
+        detail.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        area.pack_start(detail, False, False, 0)
+
+        state = {"cancel": False, "done": False}
+
+        def should_cancel():
+            return state["cancel"]
+
+        def on_progress(snapshot: TransferProgress):
+            def update():
+                if state["done"]:
+                    return False
+                if snapshot.total_bytes > 0:
+                    bar.set_fraction(
+                        min(1.0, snapshot.done_bytes / snapshot.total_bytes))
+                if snapshot.total_files:
+                    bar.set_text(
+                        f"{snapshot.done_files}/{snapshot.total_files} files")
+                detail.set_text(snapshot.current_name)
+                return False
+            GLib.idle_add(update)
+
+        def worker():
+            return fn(on_progress, should_cancel)
+
+        def on_done(result, error):
+            state["done"] = True
+            progress_dialog.destroy()
+            if isinstance(error, TransferCancelled):
+                self.outline.set_remote_status(
+                    "idle", "SSH", "Transfer cancelled")
+                return
+            if error is not None:
+                self.outline.set_remote_status(
+                    "failed", "Transfer failed", authority)
+                self._render_error(f"Transfer failed:\n{error}")
+                return
+            self.outline.set_remote_status("connected", "SSH connected", authority)
+            summary = success
+            if result is not None:
+                summary = (
+                    f"{success}\n\n"
+                    f"{result.files} file(s), {result.directories} folder(s), "
+                    f"{_human_size(result.bytes)}.")
+            self._render_info("Transfer complete", summary)
+            if (self.markdown_root_uri
+                    and self.markdown_root_uri.is_local
+                    and self.mode != "edit"):
+                self._scan_markdown_folder()
+
+        cancel_button.connect(
+            "clicked", lambda *_: state.update(cancel=True))
+        progress_dialog.connect(
+            "delete-event", lambda *_: (state.update(cancel=True), True)[1])
+        progress_dialog.show_all()
+        self.outline.set_remote_status("connecting", "Transferring", authority)
+        self._run_storage_task(worker, on_done)
+
+    def _render_info(self, title, message):
+        md_text = f"# {title}\n\n{message}\n"
+        self.webview.load_html(
+            render(md_text, self.theme, title, APP_DIR),
+            APP_DIR.as_uri() + "/")
+
     def _ensure_sidebar_folder_for_file(
             self,
             path: Path,
@@ -2303,6 +2595,8 @@ class Viewer(Gtk.ApplicationWindow):
         bind("f", CTRL | SHIFT, self._open_folder_search)
         bind("p", CTRL, self._open_palette)
         bind("o", CTRL | SHIFT, self._toggle_outline)
+        bind("u", CTRL | SHIFT, self._on_upload_to_remote)
+        bind("d", CTRL | SHIFT, self._on_download_from_remote)
         bind("t", CTRL | SHIFT, self._toggle_typewriter)
         bind("b", CTRL, lambda: self._wrap_selection("**", "**", "bold text"))
         bind("i", CTRL, lambda: self._wrap_selection("*", "*", "italic text"))
@@ -3013,6 +3307,8 @@ class Viewer(Gtk.ApplicationWindow):
             ("Preview only", "", "action:preview_only"),
             ("Toggle sidebar", "Ctrl+Shift+O", "action:sidebar"),
             ("Connect SSH/SFTP…", "", "action:remote"),
+            ("Upload file/folder to SSH/SFTP…", "Ctrl+Shift+U", "action:upload"),
+            ("Download file/folder from SSH/SFTP…", "Ctrl+Shift+D", "action:download"),
             ("Toggle typewriter mode", "Ctrl+Shift+T", "action:typewriter"),
             ("Reload", "Ctrl+R", "action:reload"),
             ("Toggle theme", "Ctrl+D", "action:theme"),
@@ -3120,6 +3416,8 @@ class Viewer(Gtk.ApplicationWindow):
                 "outline": self._toggle_outline,
                 "sidebar": self._toggle_outline,
                 "remote": self._open_remote_from_welcome,
+                "upload": self._on_upload_to_remote,
+                "download": self._on_download_from_remote,
                 "typewriter": self._toggle_typewriter,
                 "open_url": self._open_from_url_prompt,
                 "insert_table": self._insert_table_prompt,
@@ -3828,6 +4126,10 @@ class Viewer(Gtk.ApplicationWindow):
             ("<Primary><Shift>s", "Save As"),
             ("<Primary>r", "Reload"),
             ("<Primary>q", "Quit"),
+        ]))
+        section.add(group("Remote (SSH/SFTP)", [
+            ("<Primary><Shift>u", "Upload file/folder to remote"),
+            ("<Primary><Shift>d", "Download file/folder from remote"),
         ]))
         section.add(group("View", [
             ("<Primary>e", "Toggle edit mode"),

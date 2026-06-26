@@ -4,7 +4,7 @@
 > GTK3 + WebKit on Linux. PyQt6 + QtWebEngine on Windows.
 > No Electron, no tray daemon, no account. Starts in under a second.
 
-[![version](https://img.shields.io/badge/version-0.7.5-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.8.0-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)](#install)
 [![snap](https://img.shields.io/badge/Snapcraft-vertexwrite-E95420?logo=snapcraft&logoColor=white)](https://snapcraft.io/vertexwrite)
@@ -69,8 +69,15 @@ The chrome stays minimal: compact header buttons, one toolbar that only appears 
 - **Document sidebar** (`Ctrl+Shift+O`) — resizable left pane with recent documents on top and a file-browser folder tree below; choose a local folder/file or connect to SSH/SFTP, browse folders/files, and toggle hidden dotfiles
 - **Back / forward** (`Alt+←` / `Alt+→`) — history of opened files + cursor lines
 
+### Remote files (SSH/SFTP)
+- **Connect SSH/SFTP** — browse and edit Markdown directly on a remote server
+- **Upload to SSH/SFTP** (`Ctrl+Shift+U`) — copy a local file *or an entire folder* to a remote server
+- **Download from SSH/SFTP** (`Ctrl+Shift+D`) — copy a remote file *or an entire folder* to this computer
+- Transfers run in the background with a progress dialog and a Cancel button; recursive folder copies use a single SSH session
+- Authentication uses your SSH agent/keys and `known_hosts` — no passwords are stored
+
 ### Palette actions (Ctrl+P)
-Open / New / Save · Toggle edit / split / preview · Sidebar · **Connect SSH/SFTP** · Typewriter · Reload · Theme · Folder search · **Open from URL** · **Insert table** · **All tasks in folder** · **Backlinks to this file** · **Check links** · **Snapshot history** · **Export PDF / DOCX / HTML / EPUB** via pandoc.
+Open / New / Save · Toggle edit / split / preview · Sidebar · **Connect SSH/SFTP** · **Upload to SSH/SFTP** · **Download from SSH/SFTP** · Typewriter · Reload · Theme · Folder search · **Open from URL** · **Insert table** · **All tasks in folder** · **Backlinks to this file** · **Check links** · **Snapshot history** · **Export PDF / DOCX / HTML / EPUB** via pandoc.
 
 ### Persistence
 - Every save writes a dated copy to `~/.local/state/vertexwrite/snapshots/`. Latest 30 per document; browse with the palette.

@@ -6,6 +6,25 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-06-26
+
+### Added
+- SSH/SFTP **upload** of individual files and entire folders to a remote
+  server, available from the command palette, the menu, and `Ctrl+Shift+U`.
+- SSH/SFTP **download** of individual files and entire folders from a remote
+  server, available from the command palette, the menu, and `Ctrl+Shift+D`.
+- A progress dialog for transfers showing per-file progress and a Cancel
+  button; transfers run on a background thread so the editor stays responsive.
+- Recursive transfer engine (`upload_tree`/`download_tree` and the
+  `upload_to_remote`/`download_to_local` helpers) in `vertexwrite_files`,
+  reusing a single SSH session per transfer and preserving file modes.
+- The Windows build now ships the shared SSH/SFTP storage layer so remote
+  upload/download works there as well as on Linux.
+
+### Changed
+- Authentication for transfers reuses the existing SSH agent/keys and
+  `known_hosts` policy already used for remote browsing — no passwords stored.
+
 ## [0.7.5] — 2026-05-02
 
 ### Added
