@@ -15,6 +15,9 @@ versioning follows [SemVer](https://semver.org/).
   server, available from the command palette, the menu, and `Ctrl+Shift+D`.
 - A progress dialog for transfers showing per-file progress and a Cancel
   button; transfers run on a background thread so the editor stays responsive.
+- A right-click context menu on the Linux sidebar folder tree: download a
+  remote item to a chosen local folder, or upload a local item to a remote
+  server, plus the generic upload/download/connect actions.
 - Recursive transfer engine (`upload_tree`/`download_tree` and the
   `upload_to_remote`/`download_to_local` helpers) in `vertexwrite_files`,
   reusing a single SSH session per transfer and preserving file modes.

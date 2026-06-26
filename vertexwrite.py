@@ -927,7 +927,9 @@ class DocumentSidebar(Gtk.Box):
             on_choose_markdown_folder,
             on_rescan_markdown_folder,
             on_toggle_hidden_files,
-            on_remote_connect):
+            on_remote_connect,
+            on_download_uri=None,
+            on_upload_uri=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_size_request(SIDEBAR_MIN_WIDTH, -1)
         self.set_hexpand(True)
@@ -940,6 +942,8 @@ class DocumentSidebar(Gtk.Box):
         self.on_rescan_markdown_folder = on_rescan_markdown_folder
         self.on_toggle_hidden_files = on_toggle_hidden_files
         self.on_remote_connect = on_remote_connect
+        self.on_download_uri = on_download_uri
+        self.on_upload_uri = on_upload_uri
         self.show_hidden_files = False
         self._remote_state = "idle"
         self._remote_pulse_timer: int | None = None
@@ -1017,6 +1021,8 @@ class DocumentSidebar(Gtk.Box):
         self.folder_listbox.set_selection_mode(Gtk.SelectionMode.NONE)
         self.folder_listbox.set_activate_on_single_click(True)
         self.folder_listbox.connect("row-activated", self._on_folder_tree_row)
+        self.folder_listbox.connect(
+            "button-press-event", self._on_folder_tree_button_press)
 
         self.folder_scroller = Gtk.ScrolledWindow()
         self.folder_scroller.set_hexpand(True)
@@ -1307,6 +1313,54 @@ class DocumentSidebar(Gtk.Box):
         file_path = getattr(row, "file_path", None)
         if file_path:
             self.on_open_markdown(Path(file_path))
+
+    def _on_folder_tree_button_press(self, _lb, event):
+        if event.button != 3:  # right-click only
+            return False
+        row = self.folder_listbox.get_row_at_y(int(event.y))
+        menu = Gtk.Menu()
+
+        def add_item(label, handler):
+            item = Gtk.MenuItem(label=label)
+            item.connect("activate", lambda *_: handler())
+            menu.append(item)
+
+        contextual = False
+        if row is not None:
+            uri = getattr(row, "file_uri", None)
+            path = getattr(row, "file_path", None)
+            kind = "Folder" if getattr(row, "is_dir", False) else "File"
+            if uri is not None and uri.is_remote and self.on_download_uri:
+                add_item(f"Download {kind.lower()} “{uri.name}” to…",
+                         lambda u=uri: self.on_download_uri(u))
+                contextual = True
+            elif self.on_upload_uri:
+                target = None
+                name = ""
+                if uri is not None and uri.is_local:
+                    target, name = uri, uri.name
+                elif path is not None:
+                    target, name = Path(path), Path(path).name
+                if target is not None:
+                    add_item(f"Upload {kind.lower()} “{name}” to remote…",
+                             lambda t=target: self.on_upload_uri(t))
+                    contextual = True
+
+        if contextual:
+            menu.append(Gtk.SeparatorMenuItem())
+        if self.on_upload_uri:
+            add_item("Upload file/folder to remote…",
+                     lambda: self.on_upload_uri(None))
+        if self.on_download_uri:
+            add_item("Download file/folder from remote…",
+                     lambda: self.on_download_uri(None))
+        if self.on_remote_connect:
+            add_item("Connect SSH/SFTP…", lambda: self.on_remote_connect())
+
+        self._context_menu = menu  # keep a reference so it isn't GC'd
+        menu.show_all()
+        menu.popup_at_pointer(event)
+        return True
 
 
 # --- main window -------------------------------------------------------------
@@ -1724,6 +1778,8 @@ class Viewer(Gtk.ApplicationWindow):
             on_rescan_markdown_folder=self._scan_markdown_folder,
             on_toggle_hidden_files=self._toggle_folder_hidden_files,
             on_remote_connect=self._open_remote_dialog,
+            on_download_uri=self._context_download,
+            on_upload_uri=self._context_upload,
         )
         self.outline_revealer = Gtk.Revealer()
         self.outline_revealer.set_no_show_all(True)
@@ -2193,6 +2249,93 @@ class Viewer(Gtk.ApplicationWindow):
         self.webview.load_html(
             render(md_text, self.theme, title, APP_DIR),
             APP_DIR.as_uri() + "/")
+
+    # ---- sidebar right-click transfer actions ------------------------------
+
+    def _context_download(self, remote_uri):
+        if remote_uri is None:
+            self._on_download_from_remote()
+        else:
+            self._download_uri(remote_uri)
+
+    def _context_upload(self, source):
+        if source is None:
+            self._on_upload_to_remote()
+        else:
+            self._upload_uri(source)
+
+    def _prompt_remote_dir(self, title):
+        dialog = Gtk.Dialog(title=title, parent=self, flags=0)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                           "OK", Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        box = dialog.get_content_area()
+        box.set_spacing(8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(12)
+        label = Gtk.Label(
+            label="Remote destination folder (SFTP URI or ssh host alias):",
+            xalign=0)
+        label.set_line_wrap(True)
+        box.pack_start(label, False, False, 0)
+        entry = Gtk.Entry()
+        entry.set_placeholder_text("sftp://user@host:22/home/user/docs")
+        entry.set_text(self._default_remote_target())
+        entry.set_activates_default(True)
+        box.pack_start(entry, False, False, 0)
+        dialog.show_all()
+        response = dialog.run()
+        text = entry.get_text().strip()
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK or not text:
+            return None
+        try:
+            return parse_remote_target(text)
+        except ValueError as exc:
+            self._render_error(f"Invalid remote destination:\n{exc}")
+            return None
+
+    def _download_uri(self, remote_uri: FileUri):
+        if not remote_uri or not remote_uri.is_remote:
+            self._render_error("That item is not a remote file or folder.")
+            return
+        chooser = Gtk.FileChooserDialog(
+            title=f"Download “{remote_uri.name}” into…", transient_for=self,
+            action=Gtk.FileChooserAction.SELECT_FOLDER)
+        chooser.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                            "Download", Gtk.ResponseType.OK)
+        default = self._default_local_dir()
+        if default:
+            chooser.set_current_folder(default)
+        response = chooser.run()
+        dest = chooser.get_filename()
+        chooser.destroy()
+        if response != Gtk.ResponseType.OK or not dest:
+            return
+        local_dir = Path(dest)
+        self._run_transfer(
+            f"Downloading {remote_uri.name} → {local_dir.name}",
+            lambda progress, should_cancel: download_to_local(
+                remote_uri, local_dir,
+                progress=progress, should_cancel=should_cancel),
+            success=f"Downloaded {remote_uri.name} to {local_dir}",
+            authority=remote_uri.authority)
+
+    def _upload_uri(self, source):
+        local = source.to_path() if isinstance(source, FileUri) else Path(source)
+        if not local.exists():
+            self._render_error(f"Local item not found:\n{local}")
+            return
+        remote_dir = self._prompt_remote_dir(f"Upload “{local.name}” to…")
+        if remote_dir is None:
+            return
+        self._run_transfer(
+            f"Uploading {local.name} → {remote_dir.authority}",
+            lambda progress, should_cancel: upload_to_remote(
+                local, remote_dir,
+                progress=progress, should_cancel=should_cancel),
+            success=f"Uploaded {local.name} to {remote_dir.display()}",
+            authority=remote_dir.authority)
 
     def _ensure_sidebar_folder_for_file(
             self,
