@@ -1484,14 +1484,19 @@ class Viewer(QMainWindow):
         def on_progress(snapshot: TransferProgress):
             if state["done"]:
                 return
-            if snapshot.total_bytes > 0:
-                dialog.setValue(int(min(
-                    100, snapshot.done_bytes * 100 / snapshot.total_bytes)))
-            label = title
             if snapshot.total_files:
+                # Transfer phase — determinate progress.
+                dialog.setRange(0, 100)
+                if snapshot.total_bytes > 0:
+                    dialog.setValue(int(min(
+                        100, snapshot.done_bytes * 100 / snapshot.total_bytes)))
                 label = (f"{title}\n{snapshot.done_files}/"
                          f"{snapshot.total_files} files — "
                          f"{snapshot.current_name}")
+            else:
+                # Scanning phase — busy/indeterminate bar.
+                dialog.setRange(0, 0)
+                label = f"{title}\n{snapshot.current_name}"
             dialog.setLabelText(label)
 
         def on_done(result, error):

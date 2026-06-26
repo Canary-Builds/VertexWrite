@@ -428,7 +428,16 @@ class SftpBackend:
         """
         source = Path(local_source).expanduser()
         target_uri = self._sftp_uri(remote_target)
-        entries, total_bytes = _scan_local_tree(source)
+        if should_cancel is not None and should_cancel():
+            raise TransferCancelled("upload cancelled")
+
+        def on_scan(count: int) -> None:
+            if progress is not None:
+                progress(TransferProgress(
+                    0, 0, 0, 0, f"Scanning local folder… {count} items"))
+
+        entries, total_bytes = _scan_local_tree(
+            source, should_cancel=should_cancel, on_scan=on_scan)
         total_files = sum(1 for kind, _ in entries if kind == "file")
         state = {"files": 0, "dirs": 0, "bytes": 0}
 
@@ -481,9 +490,19 @@ class SftpBackend:
         """
         source_uri = self._sftp_uri(remote_source)
         target = Path(local_target).expanduser()
+        if should_cancel is not None and should_cancel():
+            raise TransferCancelled("download cancelled")
         with self._session(source_uri) as (sftp, _info):
             source_uri = self._resolve_runtime_uri(sftp, source_uri)
-            entries, total_bytes = _scan_remote_tree(sftp, source_uri.path)
+
+            def on_scan(count: int) -> None:
+                if progress is not None:
+                    progress(TransferProgress(
+                        0, 0, 0, 0, f"Scanning remote folder… {count} items"))
+
+            entries, total_bytes = _scan_remote_tree(
+                sftp, source_uri.path,
+                should_cancel=should_cancel, on_scan=on_scan)
             total_files = sum(1 for kind, *_ in entries if kind == "file")
             state = {"files": 0, "dirs": 0, "bytes": 0}
 
@@ -537,6 +556,12 @@ class SftpBackend:
         try:
             self._prepare_client(client, info, lookup)
             client.connect(**self._connect_kwargs(info, lookup))
+            transport = getattr(client, "get_transport", lambda: None)()
+            if transport is not None:
+                # Detect a dead/stalled peer instead of hanging forever: send
+                # keepalives and let the transport raise once they go
+                # unanswered. The connect timeout only covers session setup.
+                transport.set_keepalive(15)
             sftp = client.open_sftp()
             yield sftp, info
         finally:
@@ -883,12 +908,18 @@ def _join_remote(base: str, name: str) -> str:
     return f"{trimmed}/{name}"
 
 
-def _scan_local_tree(root: Path) -> tuple[list[tuple[str, str]], int]:
+def _scan_local_tree(
+        root: Path,
+        *,
+        should_cancel: Any | None = None,
+        on_scan: Any | None = None) -> tuple[list[tuple[str, str]], int]:
     """Return ``([(kind, rel_posix), ...], total_bytes)`` for ``root``.
 
     ``rel_posix`` is "" for the root entry itself. Directories precede the
     files they contain so destinations can be created in order. Only regular
-    files and directories are included.
+    files and directories are included. ``should_cancel`` is polled while
+    walking and aborts with :class:`TransferCancelled`; ``on_scan`` receives a
+    running item count for progress feedback.
     """
     root = Path(root)
     st = root.lstat()
@@ -896,13 +927,17 @@ def _scan_local_tree(root: Path) -> tuple[list[tuple[str, str]], int]:
         return [("file", "")], (st.st_size if stat.S_ISREG(st.st_mode) else 0)
     entries: list[tuple[str, str]] = [("dir", "")]
     total = 0
+    count = 0
     for dirpath, dirnames, filenames in os.walk(root):
+        if should_cancel is not None and should_cancel():
+            raise TransferCancelled("upload cancelled")
         dirnames.sort()
         filenames.sort()
         base = Path(dirpath)
         for name in dirnames:
             rel = (base / name).relative_to(root).as_posix()
             entries.append(("dir", rel))
+            count += 1
         for name in filenames:
             path = base / name
             try:
@@ -913,14 +948,24 @@ def _scan_local_tree(root: Path) -> tuple[list[tuple[str, str]], int]:
                 continue
             entries.append(("file", path.relative_to(root).as_posix()))
             total += fst.st_size
+            count += 1
+        if on_scan is not None:
+            on_scan(count)
     return entries, total
 
 
-def _scan_remote_tree(sftp, root_path: str) -> tuple[list[tuple[str, str, str]], int]:
+def _scan_remote_tree(
+        sftp,
+        root_path: str,
+        *,
+        should_cancel: Any | None = None,
+        on_scan: Any | None = None) -> tuple[list[tuple[str, str, str]], int]:
     """Return ``([(kind, remote_path, rel_posix), ...], total_bytes)``.
 
     Directories precede their contents. Only regular files and directories
-    are included.
+    are included. ``should_cancel`` is polled between directory listings and
+    aborts with :class:`TransferCancelled`; ``on_scan`` receives a running
+    item count for progress feedback.
     """
     attrs = sftp.lstat(root_path)
     mode = getattr(attrs, "st_mode", None)
@@ -929,8 +974,11 @@ def _scan_remote_tree(sftp, root_path: str) -> tuple[list[tuple[str, str, str]],
         return [("file", root_path, "")], size
     entries: list[tuple[str, str, str]] = [("dir", root_path, "")]
     total = 0
+    count = 0
     pending = [(root_path, "")]
     while pending:
+        if should_cancel is not None and should_cancel():
+            raise TransferCancelled("download cancelled")
         current, rel_base = pending.pop()
         children = sorted(
             sftp.listdir_attr(current), key=lambda a: a.filename)
@@ -941,9 +989,13 @@ def _scan_remote_tree(sftp, root_path: str) -> tuple[list[tuple[str, str, str]],
             if child_mode is not None and stat.S_ISDIR(child_mode):
                 entries.append(("dir", child_path, rel))
                 pending.append((child_path, rel))
+                count += 1
             elif child_mode is not None and stat.S_ISREG(child_mode):
                 entries.append(("file", child_path, rel))
                 total += getattr(child, "st_size", 0) or 0
+                count += 1
+        if on_scan is not None:
+            on_scan(count)
     return entries, total
 
 

@@ -2198,12 +2198,18 @@ class Viewer(Gtk.ApplicationWindow):
             def update():
                 if state["done"]:
                     return False
-                if snapshot.total_bytes > 0:
-                    bar.set_fraction(
-                        min(1.0, snapshot.done_bytes / snapshot.total_bytes))
                 if snapshot.total_files:
+                    # Transfer phase — show determinate progress.
+                    if snapshot.total_bytes > 0:
+                        bar.set_fraction(
+                            min(1.0, snapshot.done_bytes / snapshot.total_bytes))
                     bar.set_text(
                         f"{snapshot.done_files}/{snapshot.total_files} files")
+                else:
+                    # Scanning phase (no totals yet) — pulse so it's clearly
+                    # working rather than frozen.
+                    bar.pulse()
+                    bar.set_text(snapshot.current_name or "Working…")
                 detail.set_text(snapshot.current_name)
                 return False
             GLib.idle_add(update)

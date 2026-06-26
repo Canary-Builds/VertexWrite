@@ -387,6 +387,36 @@ def test_download_tree_directory(tmp_path: Path):
     assert result.bytes == 7
 
 
+def test_download_tree_cancel_during_scan(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_dir("/srv/proj")
+    sftp.add_file("/srv/proj/a.md", b"AAA")
+    backend = _transfer_backend(sftp)
+
+    # Cancelling must abort before any local file is written, even though the
+    # cancel happens while the remote tree is still being scanned.
+    dest = tmp_path / "out"
+    with pytest.raises(TransferCancelled):
+        backend.download_tree(
+            "sftp://host/srv/proj", dest, should_cancel=lambda: True)
+    assert not (dest / "a.md").exists()
+
+
+def test_download_tree_reports_scanning_progress(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_dir("/srv/proj")
+    sftp.add_file("/srv/proj/a.md", b"AAA")
+    backend = _transfer_backend(sftp)
+
+    seen: list[TransferProgress] = []
+    backend.download_tree(
+        "sftp://host/srv/proj", tmp_path / "out", progress=seen.append)
+
+    # A scanning-phase snapshot (no totals yet) is emitted before transfer.
+    assert any(p.total_files == 0 and "Scanning" in p.current_name
+               for p in seen)
+
+
 def test_download_tree_single_file(tmp_path: Path):
     sftp = _TransferSftp()
     sftp.add_file("/srv/note.md", b"# Remote\n")
