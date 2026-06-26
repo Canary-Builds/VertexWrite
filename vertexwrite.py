@@ -24,6 +24,7 @@ from vertexwrite_files import (
     TransferCancelled,
     TransferProgress,
     backend_for,
+    close_sftp_session,
     download_to_local,
     parse_remote_target,
     upload_to_remote,
@@ -2073,9 +2074,9 @@ class Viewer(Gtk.ApplicationWindow):
         local = Path(source)
         self._run_transfer(
             f"Uploading {local.name} → {remote_dir.authority}",
-            lambda progress, should_cancel: upload_to_remote(
-                local, remote_dir,
-                progress=progress, should_cancel=should_cancel),
+            lambda progress, should_cancel, on_session: upload_to_remote(
+                local, remote_dir, progress=progress,
+                should_cancel=should_cancel, on_session=on_session),
             success=f"Uploaded {local.name} to {remote_dir.display()}",
             authority=remote_dir.authority)
 
@@ -2162,9 +2163,9 @@ class Viewer(Gtk.ApplicationWindow):
         local_dir = Path(dest_dir)
         self._run_transfer(
             f"Downloading {remote_uri.name} → {local_dir.name}",
-            lambda progress, should_cancel: download_to_local(
-                remote_uri, local_dir,
-                progress=progress, should_cancel=should_cancel),
+            lambda progress, should_cancel, on_session: download_to_local(
+                remote_uri, local_dir, progress=progress,
+                should_cancel=should_cancel, on_session=on_session),
             success=f"Downloaded {remote_uri.name} to {local_dir}",
             authority=remote_uri.authority)
 
@@ -2189,38 +2190,47 @@ class Viewer(Gtk.ApplicationWindow):
         detail.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         area.pack_start(detail, False, False, 0)
 
-        state = {"cancel": False, "done": False}
+        state = {"cancel": False, "done": False, "session": None}
 
         def should_cancel():
             return state["cancel"]
+
+        def on_session(sftp):
+            state["session"] = sftp
+
+        def do_cancel():
+            state["cancel"] = True
+            # Tear the live connection down so a blocked request returns at
+            # once instead of waiting for the operation timeout.
+            close_sftp_session(state["session"])
 
         def on_progress(snapshot: TransferProgress):
             def update():
                 if state["done"]:
                     return False
-                if snapshot.total_files:
-                    # Transfer phase — show determinate progress.
-                    if snapshot.total_bytes > 0:
-                        bar.set_fraction(
-                            min(1.0, snapshot.done_bytes / snapshot.total_bytes))
-                    bar.set_text(
-                        f"{snapshot.done_files}/{snapshot.total_files} files")
+                if snapshot.total_bytes > 0:
+                    bar.set_fraction(
+                        min(1.0, snapshot.done_bytes / snapshot.total_bytes))
                 else:
-                    # Scanning phase (no totals yet) — pulse so it's clearly
-                    # working rather than frozen.
+                    # Streaming transfer with no precomputed total — pulse so
+                    # it's clearly working, and show the running tally.
                     bar.pulse()
-                    bar.set_text(snapshot.current_name or "Working…")
+                count = snapshot.done_files
+                bar.set_text(
+                    f"{count} file{'' if count == 1 else 's'} · "
+                    f"{_human_size(snapshot.done_bytes)}")
                 detail.set_text(snapshot.current_name)
                 return False
             GLib.idle_add(update)
 
         def worker():
-            return fn(on_progress, should_cancel)
+            return fn(on_progress, should_cancel, on_session)
 
         def on_done(result, error):
             state["done"] = True
             progress_dialog.destroy()
-            if isinstance(error, TransferCancelled):
+            if isinstance(error, TransferCancelled) or (
+                    state["cancel"] and error is not None):
                 self.outline.set_remote_status(
                     "idle", "SSH", "Transfer cancelled")
                 return
@@ -2242,10 +2252,9 @@ class Viewer(Gtk.ApplicationWindow):
                     and self.mode != "edit"):
                 self._scan_markdown_folder()
 
-        cancel_button.connect(
-            "clicked", lambda *_: state.update(cancel=True))
+        cancel_button.connect("clicked", lambda *_: do_cancel())
         progress_dialog.connect(
-            "delete-event", lambda *_: (state.update(cancel=True), True)[1])
+            "delete-event", lambda *_: (do_cancel(), True)[1])
         progress_dialog.show_all()
         self.outline.set_remote_status("connecting", "Transferring", authority)
         self._run_storage_task(worker, on_done)
@@ -2321,9 +2330,9 @@ class Viewer(Gtk.ApplicationWindow):
         local_dir = Path(dest)
         self._run_transfer(
             f"Downloading {remote_uri.name} → {local_dir.name}",
-            lambda progress, should_cancel: download_to_local(
-                remote_uri, local_dir,
-                progress=progress, should_cancel=should_cancel),
+            lambda progress, should_cancel, on_session: download_to_local(
+                remote_uri, local_dir, progress=progress,
+                should_cancel=should_cancel, on_session=on_session),
             success=f"Downloaded {remote_uri.name} to {local_dir}",
             authority=remote_uri.authority)
 
@@ -2337,9 +2346,9 @@ class Viewer(Gtk.ApplicationWindow):
             return
         self._run_transfer(
             f"Uploading {local.name} → {remote_dir.authority}",
-            lambda progress, should_cancel: upload_to_remote(
-                local, remote_dir,
-                progress=progress, should_cancel=should_cancel),
+            lambda progress, should_cancel, on_session: upload_to_remote(
+                local, remote_dir, progress=progress,
+                should_cancel=should_cancel, on_session=on_session),
             success=f"Uploaded {local.name} to {remote_dir.display()}",
             authority=remote_dir.authority)
 

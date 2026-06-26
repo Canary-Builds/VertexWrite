@@ -71,6 +71,7 @@ from vertexwrite_files import (
     FileUri,
     TransferCancelled,
     TransferProgress,
+    close_sftp_session,
     download_to_local,
     parse_remote_target,
     upload_to_remote,
@@ -1432,9 +1433,9 @@ class Viewer(QMainWindow):
         local = Path(source)
         self._run_transfer(
             f"Uploading {local.name} → {remote_dir.authority}",
-            lambda progress, should_cancel: upload_to_remote(
-                local, remote_dir,
-                progress=progress, should_cancel=should_cancel),
+            lambda progress, should_cancel, on_session: upload_to_remote(
+                local, remote_dir, progress=progress,
+                should_cancel=should_cancel, on_session=on_session),
             success=f"Uploaded {local.name} to {remote_dir.display()}")
 
     def _on_download_from_remote(self):
@@ -1460,9 +1461,9 @@ class Viewer(QMainWindow):
         local_dir = Path(dest_dir)
         self._run_transfer(
             f"Downloading {remote_uri.name} → {local_dir.name}",
-            lambda progress, should_cancel: download_to_local(
-                remote_uri, local_dir,
-                progress=progress, should_cancel=should_cancel),
+            lambda progress, should_cancel, on_session: download_to_local(
+                remote_uri, local_dir, progress=progress,
+                should_cancel=should_cancel, on_session=on_session),
             success=f"Downloaded {remote_uri.name} to {local_dir}")
 
     def _run_transfer(self, title, fn, *, success):
@@ -1475,34 +1476,43 @@ class Viewer(QMainWindow):
         dialog.setAutoReset(False)
         dialog.setMinimumDuration(0)
         dialog.setValue(0)
-        state = {"cancel": False, "done": False}
-        dialog.canceled.connect(lambda: state.update(cancel=True))
+        state = {"cancel": False, "done": False, "session": None}
+
+        def do_cancel():
+            state["cancel"] = True
+            # Tear the live connection down so a blocked request returns at
+            # once instead of waiting for the operation timeout.
+            close_sftp_session(state["session"])
+
+        dialog.canceled.connect(do_cancel)
 
         def should_cancel():
             return state["cancel"]
 
+        def on_session(sftp):
+            state["session"] = sftp
+
         def on_progress(snapshot: TransferProgress):
             if state["done"]:
                 return
-            if snapshot.total_files:
-                # Transfer phase — determinate progress.
+            if snapshot.total_bytes > 0:
                 dialog.setRange(0, 100)
-                if snapshot.total_bytes > 0:
-                    dialog.setValue(int(min(
-                        100, snapshot.done_bytes * 100 / snapshot.total_bytes)))
-                label = (f"{title}\n{snapshot.done_files}/"
-                         f"{snapshot.total_files} files — "
-                         f"{snapshot.current_name}")
+                dialog.setValue(int(min(
+                    100, snapshot.done_bytes * 100 / snapshot.total_bytes)))
             else:
-                # Scanning phase — busy/indeterminate bar.
+                # Streaming transfer with no precomputed total — busy bar.
                 dialog.setRange(0, 0)
-                label = f"{title}\n{snapshot.current_name}"
+            count = snapshot.done_files
+            label = (f"{title}\n{count} file{'' if count == 1 else 's'} · "
+                     f"{_human_size(snapshot.done_bytes)} · "
+                     f"{snapshot.current_name}")
             dialog.setLabelText(label)
 
         def on_done(result, error):
             state["done"] = True
             dialog.close()
-            if isinstance(error, TransferCancelled):
+            if isinstance(error, TransferCancelled) or (
+                    state["cancel"] and error is not None):
                 self.status_path_label.setText("Transfer cancelled")
                 return
             if error is not None:
@@ -1521,7 +1531,7 @@ class Viewer(QMainWindow):
 
         def worker():
             try:
-                res = fn(signals.progress.emit, should_cancel)
+                res = fn(signals.progress.emit, should_cancel, on_session)
                 signals.done.emit(res, None)
             except Exception as exc:  # noqa: BLE001 - reported via dialog
                 signals.done.emit(None, exc)

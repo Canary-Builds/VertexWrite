@@ -354,8 +354,9 @@ def test_upload_tree_directory_recurses_and_reports_progress(tmp_path: Path):
     assert "/srv/proj" in sftp.dirs and "/srv/proj/sub" in sftp.dirs
     assert result.files == 2
     assert result.bytes == 7
+    # Streaming transfer: totals are unknown (0); cumulative count reaches 2.
     assert seen and seen[-1].done_files == 2
-    assert seen[-1].total_files == 2
+    assert all(p.total_files == 0 for p in seen)
 
 
 def test_upload_tree_can_be_cancelled(tmp_path: Path):
@@ -387,14 +388,13 @@ def test_download_tree_directory(tmp_path: Path):
     assert result.bytes == 7
 
 
-def test_download_tree_cancel_during_scan(tmp_path: Path):
+def test_download_tree_cancel_before_transfer(tmp_path: Path):
     sftp = _TransferSftp()
     sftp.add_dir("/srv/proj")
     sftp.add_file("/srv/proj/a.md", b"AAA")
     backend = _transfer_backend(sftp)
 
-    # Cancelling must abort before any local file is written, even though the
-    # cancel happens while the remote tree is still being scanned.
+    # A cancel that is already set must abort before any local file is written.
     dest = tmp_path / "out"
     with pytest.raises(TransferCancelled):
         backend.download_tree(
@@ -402,7 +402,7 @@ def test_download_tree_cancel_during_scan(tmp_path: Path):
     assert not (dest / "a.md").exists()
 
 
-def test_download_tree_reports_scanning_progress(tmp_path: Path):
+def test_download_tree_reports_streaming_progress(tmp_path: Path):
     sftp = _TransferSftp()
     sftp.add_dir("/srv/proj")
     sftp.add_file("/srv/proj/a.md", b"AAA")
@@ -412,9 +412,25 @@ def test_download_tree_reports_scanning_progress(tmp_path: Path):
     backend.download_tree(
         "sftp://host/srv/proj", tmp_path / "out", progress=seen.append)
 
-    # A scanning-phase snapshot (no totals yet) is emitted before transfer.
-    assert any(p.total_files == 0 and "Scanning" in p.current_name
-               for p in seen)
+    # No pre-scan: every snapshot has unknown totals and a cumulative count
+    # that ends at the number of files transferred.
+    assert seen
+    assert all(p.total_files == 0 and p.total_bytes == 0 for p in seen)
+    assert seen[-1].done_files == 1
+
+
+def test_on_session_receives_live_client(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_file("/srv/note.md", b"hi")
+    backend = _transfer_backend(sftp)
+
+    captured = []
+    backend.download_tree(
+        "sftp://host/srv/note.md", tmp_path / "note.md",
+        on_session=captured.append)
+
+    # The UI is handed the live session so it can tear it down to cancel.
+    assert captured and captured[0] is sftp
 
 
 def test_download_tree_single_file(tmp_path: Path):
