@@ -6,6 +6,38 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-06-26
+
+### Added
+- SSH/SFTP **upload** of individual files and entire folders to a remote
+  server, available from the command palette, the menu, and `Ctrl+Shift+U`.
+- SSH/SFTP **download** of individual files and entire folders from a remote
+  server, available from the command palette, the menu, and `Ctrl+Shift+D`.
+- A progress dialog for transfers showing the running file/byte tally and a
+  Cancel button; transfers run on a background thread so the editor stays
+  responsive.
+- A right-click context menu on the Linux sidebar folder tree: download a
+  remote item to a chosen local folder, or upload a local item to a remote
+  server, plus the generic upload/download/connect actions.
+- Streaming recursive transfer engine (`upload_tree`/`download_tree` and the
+  `upload_to_remote`/`download_to_local` helpers) in `vertexwrite_files`:
+  files are transferred as the tree is walked, so progress starts immediately
+  with no up-front scan. Uses a single SSH session per transfer and preserves
+  file modes.
+- The Windows build now ships the shared SSH/SFTP storage layer so remote
+  upload/download works there as well as on Linux.
+
+### Changed
+- Authentication for transfers reuses the existing SSH agent/keys and
+  `known_hosts` policy already used for remote browsing — no passwords stored.
+
+### Reliability
+- Transfers can no longer hang indefinitely: each SSH operation has a timeout
+  and the connection sends keepalives, so a wedged or dead server raises an
+  error instead of freezing the app.
+- Cancel is immediate — it tears down the live SSH session so an in-flight
+  request returns at once rather than waiting for the timeout.
+
 ## [0.7.5] — 2026-05-02
 
 ### Added

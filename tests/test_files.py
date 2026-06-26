@@ -13,7 +13,10 @@ from vertexwrite_files import (  # noqa: E402
     FileUri,
     LocalBackend,
     SftpBackend,
+    TransferCancelled,
+    TransferProgress,
     UnsupportedBackendError,
+    _join_remote,
     _KnownHostsAliasPolicy,
     backend_for,
     parse_remote_target,
@@ -235,6 +238,211 @@ def test_registry_reports_unsupported_remote_backend():
 
     with pytest.raises(UnsupportedBackendError):
         registry.backend_for("sftp://example.com/home/alice/note.md")
+
+
+# --- Recursive transfer (upload/download) -----------------------------------
+
+
+class _TransferSftp:
+    """In-memory SFTP that copies to/from real local files for put/get."""
+
+    def __init__(self):
+        self.files: dict[str, bytes] = {}
+        self.dirs: set[str] = {"/", "/srv"}
+        self.modes: dict[str, int] = {}
+
+    def add_file(self, path: str, data: bytes, mode: int = 0o644):
+        self.files[path] = data
+        self.modes[path] = stat.S_IFREG | mode
+
+    def add_dir(self, path: str):
+        self.dirs.add(path)
+        self.modes[path] = stat.S_IFDIR | 0o755
+
+    def lstat(self, path: str):
+        if path in self.files:
+            return _Attrs(Path(path).name, self.modes[path], len(self.files[path]))
+        if path in self.dirs:
+            return _Attrs(Path(path).name, self.modes.get(path, stat.S_IFDIR | 0o755))
+        raise FileNotFoundError(path)
+
+    stat = lstat
+
+    def listdir_attr(self, path: str):
+        prefix = path.rstrip("/") + "/"
+        out = []
+        for item in sorted(set(self.files) | self.dirs):
+            if not item.startswith(prefix):
+                continue
+            rest = item[len(prefix):]
+            if not rest or "/" in rest:
+                continue
+            attr = self.lstat(item)
+            attr.filename = rest
+            out.append(attr)
+        return out
+
+    def mkdir(self, path: str):
+        if path in self.dirs:
+            raise OSError(f"{path} exists")
+        self.add_dir(path)
+
+    def chmod(self, path: str, mode: int):
+        if path in self.files:
+            self.modes[path] = stat.S_IFREG | mode
+
+    def put(self, localpath: str, remotepath: str, callback=None):
+        data = Path(localpath).read_bytes()
+        self.files[remotepath] = data
+        self.modes[remotepath] = stat.S_IFREG | 0o644
+        if callback:
+            callback(len(data), len(data))
+
+    def get(self, remotepath: str, localpath: str, callback=None):
+        data = self.files[remotepath]
+        Path(localpath).write_bytes(data)
+        if callback:
+            callback(len(data), len(data))
+
+    def normalize(self, path: str):
+        return "/home/test" if path == "." else path
+
+    def close(self):
+        return
+
+
+def _transfer_backend(sftp: _TransferSftp) -> SftpBackend:
+    client = _FakeClient(sftp)
+    return SftpBackend(client_factory=lambda: client)
+
+
+def test_join_remote_handles_roots_and_trailing_slashes():
+    assert _join_remote("/srv/docs", "note.md") == "/srv/docs/note.md"
+    assert _join_remote("/srv/docs/", "note.md") == "/srv/docs/note.md"
+    assert _join_remote("/", "note.md") == "/note.md"
+    assert _join_remote("/.", "note.md") == "/./note.md"
+
+
+def test_upload_tree_single_file(tmp_path: Path):
+    sftp = _TransferSftp()
+    backend = _transfer_backend(sftp)
+    src = tmp_path / "note.md"
+    src.write_bytes(b"# Hello\n")
+
+    result = backend.upload_tree(src, "sftp://host/srv/note.md")
+
+    assert sftp.files["/srv/note.md"] == b"# Hello\n"
+    assert result.files == 1
+    assert result.directories == 0
+    assert result.bytes == len(b"# Hello\n")
+
+
+def test_upload_tree_directory_recurses_and_reports_progress(tmp_path: Path):
+    sftp = _TransferSftp()
+    backend = _transfer_backend(sftp)
+    root = tmp_path / "proj"
+    (root / "sub").mkdir(parents=True)
+    (root / "a.md").write_bytes(b"AAA")
+    (root / "sub" / "b.md").write_bytes(b"BBBB")
+
+    seen: list[TransferProgress] = []
+    result = backend.upload_tree(
+        root, "sftp://host/srv/proj", progress=seen.append)
+
+    assert sftp.files["/srv/proj/a.md"] == b"AAA"
+    assert sftp.files["/srv/proj/sub/b.md"] == b"BBBB"
+    assert "/srv/proj" in sftp.dirs and "/srv/proj/sub" in sftp.dirs
+    assert result.files == 2
+    assert result.bytes == 7
+    # Streaming transfer: totals are unknown (0); cumulative count reaches 2.
+    assert seen and seen[-1].done_files == 2
+    assert all(p.total_files == 0 for p in seen)
+
+
+def test_upload_tree_can_be_cancelled(tmp_path: Path):
+    sftp = _TransferSftp()
+    backend = _transfer_backend(sftp)
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "a.md").write_bytes(b"AAA")
+
+    with pytest.raises(TransferCancelled):
+        backend.upload_tree(
+            root, "sftp://host/srv/proj", should_cancel=lambda: True)
+
+
+def test_download_tree_directory(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_dir("/srv/proj")
+    sftp.add_dir("/srv/proj/sub")
+    sftp.add_file("/srv/proj/a.md", b"AAA")
+    sftp.add_file("/srv/proj/sub/b.md", b"BBBB")
+    backend = _transfer_backend(sftp)
+
+    dest = tmp_path / "local-proj"
+    result = backend.download_tree("sftp://host/srv/proj", dest)
+
+    assert (dest / "a.md").read_bytes() == b"AAA"
+    assert (dest / "sub" / "b.md").read_bytes() == b"BBBB"
+    assert result.files == 2
+    assert result.bytes == 7
+
+
+def test_download_tree_cancel_before_transfer(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_dir("/srv/proj")
+    sftp.add_file("/srv/proj/a.md", b"AAA")
+    backend = _transfer_backend(sftp)
+
+    # A cancel that is already set must abort before any local file is written.
+    dest = tmp_path / "out"
+    with pytest.raises(TransferCancelled):
+        backend.download_tree(
+            "sftp://host/srv/proj", dest, should_cancel=lambda: True)
+    assert not (dest / "a.md").exists()
+
+
+def test_download_tree_reports_streaming_progress(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_dir("/srv/proj")
+    sftp.add_file("/srv/proj/a.md", b"AAA")
+    backend = _transfer_backend(sftp)
+
+    seen: list[TransferProgress] = []
+    backend.download_tree(
+        "sftp://host/srv/proj", tmp_path / "out", progress=seen.append)
+
+    # No pre-scan: every snapshot has unknown totals and a cumulative count
+    # that ends at the number of files transferred.
+    assert seen
+    assert all(p.total_files == 0 and p.total_bytes == 0 for p in seen)
+    assert seen[-1].done_files == 1
+
+
+def test_on_session_receives_live_client(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_file("/srv/note.md", b"hi")
+    backend = _transfer_backend(sftp)
+
+    captured = []
+    backend.download_tree(
+        "sftp://host/srv/note.md", tmp_path / "note.md",
+        on_session=captured.append)
+
+    # The UI is handed the live session so it can tear it down to cancel.
+    assert captured and captured[0] is sftp
+
+
+def test_download_tree_single_file(tmp_path: Path):
+    sftp = _TransferSftp()
+    sftp.add_file("/srv/note.md", b"# Remote\n")
+    backend = _transfer_backend(sftp)
+
+    dest = tmp_path / "note.md"
+    result = backend.download_tree("sftp://host/srv/note.md", dest)
+
+    assert dest.read_bytes() == b"# Remote\n"
+    assert result.files == 1
 
 
 def test_sftp_backend_parses_connection_info():

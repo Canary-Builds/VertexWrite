@@ -23,12 +23,17 @@
   </description>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/Canary-Builds/vertexwrite/v0.7.5/docs/screenshots/02-split-view.png</image>
+      <image>https://raw.githubusercontent.com/Canary-Builds/vertexwrite/v0.8.0/docs/screenshots/02-split-view.png</image>
       <caption>Split editor and live preview layout</caption>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.8.0" date="2026-06-26">
+      <description>
+        <p>Added SSH/SFTP upload and download for individual files and entire folders, with a progress dialog and cancellation. Transfers run in the background using your SSH agent/keys and known_hosts.</p>
+      </description>
+    </release>
     <release version="0.7.5" date="2026-05-02">
       <description>
         <p>Updated app store positioning, screenshots, shortcut documentation, and Flatpak metadata for the local and SSH/SFTP Markdown workflow.</p>

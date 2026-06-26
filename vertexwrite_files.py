@@ -37,6 +37,10 @@ class ParamikoUnavailableError(StorageError):
     """Raised when SFTP is requested without Paramiko installed."""
 
 
+class TransferCancelled(StorageError):
+    """Raised when a recursive transfer is cancelled by the caller."""
+
+
 @dataclass(frozen=True, slots=True)
 class FileUri:
     """Stable document identifier for local and future remote files."""
@@ -149,6 +153,26 @@ class FileInfo:
     @property
     def is_dir(self) -> bool:
         return self.kind == "directory"
+
+
+@dataclass(frozen=True, slots=True)
+class TransferProgress:
+    """Snapshot of an in-flight recursive transfer."""
+
+    done_files: int
+    total_files: int
+    done_bytes: int
+    total_bytes: int
+    current_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class TransferResult:
+    """Outcome of a completed recursive transfer."""
+
+    files: int
+    directories: int
+    bytes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,10 +306,14 @@ class SftpBackend:
             known_hosts: Path | str | None = None,
             ssh_config: Path | str | None = None,
             connect_timeout: float = 15.0,
+            operation_timeout: float = 30.0,
             client_factory: Any | None = None):
         self.known_hosts = Path(known_hosts).expanduser() if known_hosts else None
         self.ssh_config = Path(ssh_config).expanduser() if ssh_config else None
         self.connect_timeout = connect_timeout
+        # Per-operation ceiling: a wedged SFTP request raises instead of
+        # hanging the app forever (the connect timeout only covers setup).
+        self.operation_timeout = operation_timeout
         self._client_factory = client_factory
 
     def connection_info(
@@ -387,6 +415,170 @@ class SftpBackend:
             else:
                 sftp.remove(file_uri.path)
 
+    def upload_tree(
+            self,
+            local_source: Path | str | os.PathLike[str],
+            remote_target: FileUri | str | os.PathLike[str],
+            *,
+            progress: Any | None = None,
+            should_cancel: Any | None = None,
+            on_session: Any | None = None) -> TransferResult:
+        """Recursively upload a local file or directory to ``remote_target``.
+
+        ``remote_target`` is the full destination URI (the new name on the
+        server), not its parent. Files are transferred as the tree is walked
+        (no up-front sizing pass), so progress starts immediately. A single SSH
+        session is used for the whole tree.
+
+        ``progress`` receives a :class:`TransferProgress` (with unknown totals,
+        i.e. ``total_files``/``total_bytes`` are 0) after each chunk and item.
+        ``should_cancel`` is polled between items and may abort with
+        :class:`TransferCancelled`. ``on_session`` is called once with the live
+        ``SFTPClient`` so a caller can close it to cancel a blocked operation.
+        """
+        source = Path(local_source).expanduser()
+        target_uri = self._sftp_uri(remote_target)
+        if should_cancel is not None and should_cancel():
+            raise TransferCancelled("upload cancelled")
+        state = {"files": 0, "dirs": 0, "bytes": 0}
+
+        def emit(name: str, chunk: int = 0) -> None:
+            if progress is not None:
+                progress(TransferProgress(
+                    state["files"], 0, state["bytes"] + chunk, 0, name))
+
+        with self._session(target_uri) as (sftp, _info):
+            if on_session is not None:
+                on_session(sftp)
+            root = self._resolve_runtime_uri(sftp, target_uri).path
+            created: set[str] = set()
+            if stat.S_ISDIR(source.lstat().st_mode):
+                _sftp_makedirs(sftp, root, created)
+                state["dirs"] += 1
+                emit(posixpath.basename(root) or root)
+                self._upload_dir(
+                    sftp, source, root, created, state, emit, should_cancel)
+            else:
+                _sftp_makedirs(sftp, posixpath.dirname(root), created)
+                self._upload_file(sftp, source, root, state, emit)
+        return TransferResult(state["files"], state["dirs"], state["bytes"])
+
+    def _upload_dir(self, sftp, local_root, remote_root, created, state, emit,
+                    should_cancel):
+        stack = [(Path(local_root), remote_root)]
+        while stack:
+            if should_cancel is not None and should_cancel():
+                raise TransferCancelled("upload cancelled")
+            local_dir, remote_dir = stack.pop()
+            for entry in sorted(local_dir.iterdir(), key=lambda p: p.name.lower()):
+                if should_cancel is not None and should_cancel():
+                    raise TransferCancelled("upload cancelled")
+                try:
+                    mode = entry.lstat().st_mode
+                except OSError:
+                    continue
+                dest = _join_remote(remote_dir, entry.name)
+                if stat.S_ISDIR(mode):
+                    _sftp_makedirs(sftp, dest, created)
+                    state["dirs"] += 1
+                    emit(entry.name)
+                    stack.append((entry, dest))
+                elif stat.S_ISREG(mode):
+                    self._upload_file(sftp, entry, dest, state, emit)
+
+    def _upload_file(self, sftp, local_file, dest, state, emit):
+        local_file = Path(local_file)
+        name = posixpath.basename(dest)
+        sftp.put(
+            str(local_file), dest,
+            callback=lambda done, _total, _n=name: emit(_n, done))
+        try:
+            sftp.chmod(dest, stat.S_IMODE(local_file.lstat().st_mode))
+        except OSError:
+            pass
+        state["files"] += 1
+        state["bytes"] += local_file.lstat().st_size
+        emit(name)
+
+    def download_tree(
+            self,
+            remote_source: FileUri | str | os.PathLike[str],
+            local_target: Path | str | os.PathLike[str],
+            *,
+            progress: Any | None = None,
+            should_cancel: Any | None = None,
+            on_session: Any | None = None) -> TransferResult:
+        """Recursively download ``remote_source`` to local ``local_target``.
+
+        ``local_target`` is the full destination path (the new name locally).
+        Files are transferred as the remote tree is walked (no up-front sizing
+        pass). See :meth:`upload_tree` for the ``progress``, ``should_cancel``
+        and ``on_session`` contract.
+        """
+        source_uri = self._sftp_uri(remote_source)
+        target = Path(local_target).expanduser()
+        if should_cancel is not None and should_cancel():
+            raise TransferCancelled("download cancelled")
+        state = {"files": 0, "dirs": 0, "bytes": 0}
+
+        def emit(name: str, chunk: int = 0) -> None:
+            if progress is not None:
+                progress(TransferProgress(
+                    state["files"], 0, state["bytes"] + chunk, 0, name))
+
+        with self._session(source_uri) as (sftp, _info):
+            if on_session is not None:
+                on_session(sftp)
+            source_uri = self._resolve_runtime_uri(sftp, source_uri)
+            mode = getattr(sftp.lstat(source_uri.path), "st_mode", None)
+            if mode is not None and stat.S_ISDIR(mode):
+                target.mkdir(parents=True, exist_ok=True)
+                state["dirs"] += 1
+                emit(target.name)
+                self._download_dir(
+                    sftp, source_uri.path, target, state, emit, should_cancel)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                self._download_file(sftp, source_uri.path, target, state, emit)
+        return TransferResult(state["files"], state["dirs"], state["bytes"])
+
+    def _download_dir(self, sftp, remote_root, local_root, state, emit,
+                      should_cancel):
+        stack = [(remote_root, Path(local_root))]
+        while stack:
+            if should_cancel is not None and should_cancel():
+                raise TransferCancelled("download cancelled")
+            remote_dir, local_dir = stack.pop()
+            children = sorted(
+                sftp.listdir_attr(remote_dir), key=lambda a: a.filename)
+            for child in children:
+                if should_cancel is not None and should_cancel():
+                    raise TransferCancelled("download cancelled")
+                mode = getattr(child, "st_mode", None)
+                rpath = posixpath.join(remote_dir, child.filename)
+                lpath = local_dir / child.filename
+                if mode is not None and stat.S_ISDIR(mode):
+                    lpath.mkdir(parents=True, exist_ok=True)
+                    state["dirs"] += 1
+                    emit(child.filename)
+                    stack.append((rpath, lpath))
+                elif mode is not None and stat.S_ISREG(mode):
+                    self._download_file(sftp, rpath, lpath, state, emit)
+
+    def _download_file(self, sftp, remote_path, local_path, state, emit):
+        local_path = Path(local_path)
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        name = local_path.name
+        sftp.get(
+            remote_path, str(local_path),
+            callback=lambda done, _total, _n=name: emit(_n, done))
+        state["files"] += 1
+        try:
+            state["bytes"] += local_path.stat().st_size
+        except OSError:
+            pass
+        emit(name)
+
     def _sftp_uri(self, uri: FileUri | str | os.PathLike[str]) -> FileUri:
         file_uri = FileUri.parse(uri)
         if file_uri.scheme != "sftp":
@@ -409,7 +601,18 @@ class SftpBackend:
         try:
             self._prepare_client(client, info, lookup)
             client.connect(**self._connect_kwargs(info, lookup))
+            transport = getattr(client, "get_transport", lambda: None)()
+            if transport is not None:
+                # Detect a dead/stalled peer instead of hanging forever: send
+                # keepalives and let the transport raise once they go
+                # unanswered. The connect timeout only covers session setup.
+                transport.set_keepalive(15)
             sftp = client.open_sftp()
+            channel = getattr(sftp, "get_channel", lambda: None)()
+            if channel is not None and self.operation_timeout:
+                # A wedged SFTP request (server alive but not answering on the
+                # channel) would otherwise block forever; bound every read.
+                channel.settimeout(self.operation_timeout)
             yield sftp, info
         finally:
             if sftp is not None:
@@ -557,6 +760,74 @@ DEFAULT_REGISTRY = BackendRegistry([LocalBackend(), SftpBackend()])
 
 def backend_for(uri: FileUri | str | os.PathLike[str]) -> FileBackend:
     return DEFAULT_REGISTRY.backend_for(uri)
+
+
+def upload_to_remote(
+        local_source: Path | str | os.PathLike[str],
+        remote_dir: FileUri | str | os.PathLike[str],
+        *,
+        progress: Any | None = None,
+        should_cancel: Any | None = None,
+        on_session: Any | None = None) -> TransferResult:
+    """Upload a local file or folder into the remote directory ``remote_dir``.
+
+    The source basename is preserved, so uploading ``/home/me/notes`` into
+    ``sftp://host/srv`` creates ``sftp://host/srv/notes``.
+    """
+    source = Path(local_source).expanduser()
+    target_dir = FileUri.parse(remote_dir)
+    if target_dir.scheme != "sftp":
+        raise UnsupportedBackendError("upload destination must be an SFTP URI")
+    backend = DEFAULT_REGISTRY.backend_for(target_dir)
+    target = target_dir.with_path(_join_remote(target_dir.path, source.name))
+    return backend.upload_tree(
+        source, target, progress=progress,
+        should_cancel=should_cancel, on_session=on_session)
+
+
+def download_to_local(
+        remote_source: FileUri | str | os.PathLike[str],
+        local_dir: Path | str | os.PathLike[str],
+        *,
+        progress: Any | None = None,
+        should_cancel: Any | None = None,
+        on_session: Any | None = None) -> TransferResult:
+    """Download a remote file or folder into the local directory ``local_dir``.
+
+    The source basename is preserved, so downloading
+    ``sftp://host/srv/notes`` into ``/home/me`` creates ``/home/me/notes``.
+    """
+    source = FileUri.parse(remote_source)
+    if source.scheme != "sftp":
+        raise UnsupportedBackendError("download source must be an SFTP URI")
+    backend = DEFAULT_REGISTRY.backend_for(source)
+    target = Path(local_dir).expanduser() / source.name
+    return backend.download_tree(
+        source, target, progress=progress,
+        should_cancel=should_cancel, on_session=on_session)
+
+
+def close_sftp_session(sftp) -> None:
+    """Best-effort teardown of a live SFTP session to abort a blocked call.
+
+    Safe to call from another thread; closing the channel/transport makes any
+    in-flight ``get``/``listdir`` raise so a transfer can be cancelled
+    immediately instead of waiting for the operation timeout.
+    """
+    if sftp is None:
+        return
+    try:
+        channel = getattr(sftp, "get_channel", lambda: None)()
+        transport = channel.get_transport() if channel is not None else None
+    except Exception:  # noqa: BLE001 - teardown is best-effort
+        transport = None
+    for closer in (
+            lambda: sftp.close(),
+            lambda: transport.close() if transport is not None else None):
+        try:
+            closer()
+        except Exception:  # noqa: BLE001 - teardown is best-effort
+            pass
 
 
 class _KnownHostsAliasPolicy:
@@ -707,6 +978,25 @@ def _load_paramiko():
             "SFTP support requires the 'paramiko' Python package"
         ) from exc
     return paramiko
+
+
+def _join_remote(base: str, name: str) -> str:
+    trimmed = base.rstrip("/")
+    return f"{trimmed}/{name}"
+
+
+def _sftp_makedirs(sftp, path: str, created: set[str]) -> None:
+    if not path or path == "/" or path in created:
+        return
+    parent = posixpath.dirname(path.rstrip("/")) or "/"
+    if parent not in created and parent not in ("/", path):
+        _sftp_makedirs(sftp, parent, created)
+    try:
+        sftp.mkdir(path)
+    except OSError:
+        # Already exists (or a race) — tolerate and move on.
+        pass
+    created.add(path)
 
 
 def _stat_kind(mode: int) -> FileKind:

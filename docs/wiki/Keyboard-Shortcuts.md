@@ -19,6 +19,8 @@ All shortcuts are bound at the window level, so they work regardless of whether 
 |---|---|
 | `Ctrl+E` | Toggle edit mode (shows the edit toolbar) |
 | `Ctrl+Shift+O` | Toggle local/SSH sidebar |
+| `Ctrl+Shift+U` | Upload file/folder to SSH/SFTP |
+| `Ctrl+Shift+D` | Download file/folder from SSH/SFTP |
 | `Ctrl+Shift+T` | Toggle typewriter mode |
 | `Ctrl+D` | Toggle light / dark theme |
 
@@ -70,6 +72,10 @@ In edit mode the view-mode segmented buttons on the toolbar switch between **Edi
 | Connect to SSH/SFTP | `Ctrl+Shift+O`, then use the sidebar SSH control |
 | Connect from the command palette | `Ctrl+P`, then choose `Connect SSH/SFTP…` |
 | Browse an active remote folder | Use the sidebar file/folder buttons while the sidebar is connected |
+| Upload a file/folder to a remote server | `Ctrl+Shift+U` |
+| Download a file/folder from a remote server | `Ctrl+Shift+D` |
+
+Uploads and downloads work on a single file or an entire folder. They run on a background thread with a progress dialog you can cancel, reuse a single SSH session per transfer, and authenticate with your SSH agent/keys and `known_hosts`.
 
 ## Palette-only actions
 
