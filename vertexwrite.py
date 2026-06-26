@@ -1349,12 +1349,13 @@ class DocumentSidebar(Gtk.Box):
 
         if contextual:
             menu.append(Gtk.SeparatorMenuItem())
+        # Note: there is intentionally no generic "Download from remote…" here.
+        # Downloading is always scoped to the right-clicked item (above) so a
+        # stray click can't pull the whole remote home folder. Upload stays
+        # generic because it opens an explicit local file/folder picker.
         if self.on_upload_uri:
             add_item("Upload file/folder to remote…",
                      lambda: self.on_upload_uri(None))
-        if self.on_download_uri:
-            add_item("Download file/folder from remote…",
-                     lambda: self.on_download_uri(None))
         if self.on_remote_connect:
             add_item("Connect SSH/SFTP…", lambda: self.on_remote_connect())
 
